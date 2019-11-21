@@ -39,13 +39,33 @@ namespace NP {
 		return !in.eof();
 	}
 
-	inline void next_field(std::istream& in)
+#ifndef GANG
+    inline void next_field(std::istream& in)
 	{
 		// eat up any trailing spaces
 		skip_all(in, ' ');
 		// eat up field separator
 		skip_one(in, ',');
 	}
+#else
+    //return true if a field seperator is found
+    inline bool next_field(std::istream& in)
+    {
+        // eat up any trailing spaces
+        skip_all(in, ' ');
+        // eat up field separator
+        return skip_one(in, ',');
+    }
+
+    //return true if a field seperator is found
+    inline bool next_field_colon(std::istream& in)
+    {
+        // eat up any trailing spaces
+        skip_all(in, ' ');
+        // eat up field separator
+        return skip_one(in, ':');
+    }
+#endif
 
 	inline void next_line(std::istream& in)
 	{
@@ -104,6 +124,12 @@ namespace NP {
 		std::ios_base::iostate state_before = in.exceptions();
 
 		Time arr_min, arr_max, cost_min, cost_max, dl, prio;
+#ifdef GANG
+        std::vector<Interval<Time>> costs;
+        std::vector<Time> costs_min;
+        std::vector<Time> costs_max;
+        unsigned long s_min = SINGLE_CORE, s_max = SINGLE_CORE;
+#endif
 
 		in.exceptions(std::istream::failbit | std::istream::badbit);
 
@@ -114,19 +140,82 @@ namespace NP {
 		in >> arr_min;
 		next_field(in);
 		in >> arr_max;
-		next_field(in);
-		in >> cost_min;
-		next_field(in);
-		in >> cost_max;
-		next_field(in);
-		in >> dl;
-		next_field(in);
-		in >> prio;
+#ifndef GANG
+        next_field(in);
+        in >> cost_min;
+        next_field(in);
+        in >> cost_max;
+#endif
 
-		in.exceptions(state_before);
+#ifdef GANG
+        //eat comma
+        next_field(in);
+        in >> cost_min;
+        costs_min.emplace_back(cost_min);
+        //eat colon
+        //get all costs min
+        while(next_field_colon(in))
+        {
+            in >> cost_min;
+            costs_min.emplace_back(cost_min);
+        }
+        //eat comma
+        next_field(in);
+        in >> cost_max;
+        costs_max.emplace_back(cost_max);
+        //eat colon
+        //get all costs max
+        while(next_field_colon(in))
+        {
+            in >> cost_max;
+            costs_max.emplace_back(cost_max);
+        }
 
+        assert(costs_min.size() == costs_max.size());
+
+        for(auto i=0;i<costs_min.size();i++)
+            costs.emplace_back(costs_min[i],costs_max[i]);
+#endif
+        next_field(in);
+        in >> dl;
+        next_field(in);
+        in >> prio;
+
+#ifdef GANG
+        //parse s_min,s_max
+		if(next_field(in))
+		    in >> s_min;
+        if(next_field(in))
+            in >> s_max;
+#endif
+
+        in.exceptions(state_before);
+
+#ifdef GANG
+        //check for correctness
+		assert(s_max > 0 && s_min > 0);
+		assert(s_max >= s_min);
+		//costs must be equal to the difference of s_min and s_max
+		assert("Parse file error: Execution times does not match the number of parallelism, " && costs.size() == ((s_max-s_min)+SINGLE_CORE) );
+		//display warning if the execution times between more cores are larger than less cores
+		for(int i=1;i<costs.size();i++)
+        {
+		    if ((costs[i-1].from() < costs[i].from()) || (costs[i-1].upto() < costs[i].upto()))
+            {
+		        std::wcerr << "Warning T" << tid << "J" << jid <<
+		            " Execution times between more cores are larger than less cores" << std::endl;
+		        break;
+            }
+        }
+
+		//create the Job
 		return Job<Time>{jid, Interval<Time>{arr_min, arr_max},
-						 Interval<Time>{cost_min, cost_max}, dl, prio, tid};
+                              costs, dl, prio, s_min, s_max, tid};
+
+#else
+        return Job<Time>{jid, Interval<Time>{arr_min, arr_max},
+                         Interval<Time>{cost_min, cost_max}, dl, prio, tid};
+#endif
 	}
 
 	template<class Time>

@@ -26,9 +26,15 @@ namespace NP {
 			: scheduled_jobs()
 			, num_jobs_scheduled(0)
 			, core_avail{num_processors, Interval<Time>(Time(0), Time(0))}
+#ifdef GANG
+            ,core_flags(num_processors,false)
+#endif
 			, lookup_key{0x9a9a9a9a9a9a9a9aUL}
 			{
 				assert(core_avail.size() > 0);
+#ifdef GANG
+                assert(core_flags.size() > 0);
+#endif
 			}
 
 			// transition: new state by scheduling a job in an existing state,
@@ -39,14 +45,21 @@ namespace NP {
 				const Job_precedence_set& predecessors,
 				Interval<Time> start_times,
 				Interval<Time> finish_times,
-				hash_value_t key)
+				hash_value_t key
+#ifdef GANG
+                , unsigned int p = SINGLE_CORE
+#endif
+            )
 			: num_jobs_scheduled(from.num_jobs_scheduled + 1)
 			, scheduled_jobs{from.scheduled_jobs, j}
 			, lookup_key{from.lookup_key ^ key}
 			{
+			    //gang -> est for p cores
 				auto est = start_times.min();
 				auto lst = start_times.max();
+                //gang -> eft for p cores
 				auto eft = finish_times.min();
+                //gang -> lft for p cores
 				auto lft = finish_times.max();
 
 				DM("est: " << est << std::endl
@@ -54,13 +67,23 @@ namespace NP {
 				<< "eft: " << eft << std::endl
 				<< "lft: " << lft << std::endl);
 
-				std::vector<Time> ca, pa;
-
+#ifdef GANG
+				//initialise CA with p times lft elements
+				//initialise PA with p times eft elements
+                std::vector<Time> ca(p,lft), pa(p,eft);
+#else
+                std::vector<Time> ca, pa;
 				pa.push_back(eft);
 				ca.push_back(lft);
+#endif
 
+#ifdef GANG
+                // skip p elements in from.core_avail
+                for (unsigned int i = p; i < from.core_avail.size(); i++) {
+#else
 				// skip first element in from.core_avail
 				for (int i = 1; i < from.core_avail.size(); i++) {
+#endif
 					pa.push_back(std::max(est, from.core_avail[i].min()));
 					ca.push_back(std::max(est, from.core_avail[i].max()));
 				}
@@ -99,6 +122,9 @@ namespace NP {
 				for (int i = 0; i < from.core_avail.size(); i++) {
 					DM(i << " -> " << pa[i] << ":" << ca[i] << std::endl);
 					core_avail.emplace_back(pa[i], ca[i]);
+#ifdef GANG
+                    core_flags.push_back(false);
+#endif
 				}
 
 				assert(core_avail.size() > 0);
@@ -168,11 +194,39 @@ namespace NP {
 				return num_jobs_scheduled;
 			}
 
+#ifdef GANG
+            //return number of available processors
+            const unsigned int num_processors() const
+            {
+                assert(core_avail.size() > 0);
+                return core_avail.size();
+            }
+
+            //return core availability for p processors
+            //if p is greater than the number of available processors then
+            //return infinity -> 1 if no argument is called
+            Interval<Time> core_availability(unsigned long p = SINGLE_CORE) const
+            {
+                assert(core_avail.size() > 0);
+                assert((p-1) >= 0);
+                return (p-1) <= core_avail.size() ? core_avail[p-1]:
+                       Interval<Time>{Time_model::constants<Time>::infinity(), Time_model::constants<Time>::infinity()};;
+            }
+
+            //return core availability flag for p processors
+            bool core_availability_flag(unsigned long p = SINGLE_CORE) const
+            {
+                assert(core_flags.size() > 0);
+                assert((p-1) >= 0 && (p-1) < core_flags.size());
+                return core_flags[p-1];
+            }
+#else
 			Interval<Time> core_availability() const
 			{
 				assert(core_avail.size() > 0);
 				return core_avail[0];
 			}
+#endif
 
 			bool get_finish_times(Job_index j, Interval<Time> &ftimes) const
 			{
@@ -250,6 +304,11 @@ namespace NP {
 
 			// system availability intervals
 			std::vector<Interval<Time>> core_avail;
+#ifdef GANG
+            // system availability flags
+            // TODO: change to a more optimized structure
+            std::vector<bool> core_flags;
+#endif
 
 			const hash_value_t lookup_key;
 

@@ -9,6 +9,13 @@
 
 #include "time.hpp"
 
+//remove this to go back to the previous code!
+#define GANG
+
+#ifdef GANG
+#define SINGLE_CORE 1
+#endif
+
 namespace NP {
 
 	typedef std::size_t hash_value_t;
@@ -34,6 +41,29 @@ namespace NP {
 		}
 	};
 
+#ifdef GANG
+    struct Scores {
+        unsigned long s_min;
+        unsigned long s_max;
+
+        Scores(unsigned long min, unsigned long max)
+                : s_min(min), s_max(max)
+        {
+        }
+
+        bool operator==(const Scores& other) const
+        {
+            return this->s_min == other.s_min && this->s_max == other.s_max;
+        }
+
+        friend std::ostream& operator<< (std::ostream& stream, const Scores& s)
+        {
+            stream << "S_min:" << s.s_min << ", S_max:" << s.s_max;
+            return stream;
+        }
+    };
+#endif
+
 	template<class Time> class Job {
 
 	public:
@@ -42,26 +72,71 @@ namespace NP {
 
 	private:
 		Interval<Time> arrival;
+#ifdef GANG
+        //Define s_min,s_max
+        Scores scores;
+        //0 corresponds to s_min
+        std::vector<Interval<Time>> costs;
+#else
 		Interval<Time> cost;
+#endif
 		Time deadline;
 		Priority priority;
 		JobID id;
 		hash_value_t key;
+
 
 		void compute_hash() {
 			auto h = std::hash<Time>{};
 			key = h(arrival.from());
 			key = (key << 4) ^ h(id.task);
 			key = (key << 4) ^ h(arrival.until());
+#ifdef GANG
+			key = (key << 4) ^ h(get_add_cost_min());
+#else
 			key = (key << 4) ^ h(cost.from());
+#endif
 			key = (key << 4) ^ h(deadline);
+#ifdef GANG
+			key = (key << 4) ^ h(get_add_cost_max());
+#else
 			key = (key << 4) ^ h(cost.upto());
+#endif
 			key = (key << 4) ^ h(id.job);
 			key = (key << 4) ^ h(priority);
+#ifdef GANG
+            key = (key << 4) ^ h(scores.s_min);
+            key = (key << 4) ^ h(scores.s_max);
+#endif
 		}
 
 	public:
 
+#ifdef GANG
+        Job(unsigned long id,
+            Interval<Time> arr, std::vector<Interval<Time>> &acosts,
+            Time dl, Priority prio,
+            unsigned long s_min,unsigned long s_max,
+            unsigned long tid = 0)
+                : arrival(arr),
+                  costs(acosts), //multiple costs are used
+                  deadline(dl), priority(prio), id(id, tid),scores(s_min,s_max)
+        {
+            compute_hash();
+        }
+
+		Job(unsigned long id,
+			Interval<Time> arr, Interval<Time> cost,
+			Time dl, Priority prio,
+			unsigned long tid = 0)
+		: arrival(arr),
+		  deadline(dl), priority(prio), id(id, tid)
+		  ,scores(SINGLE_CORE,SINGLE_CORE)
+		{
+            costs.emplace_back(cost);
+			compute_hash();
+		}
+#else
 		Job(unsigned long id,
 			Interval<Time> arr, Interval<Time> cost,
 			Time dl, Priority prio,
@@ -71,6 +146,7 @@ namespace NP {
 		{
 			compute_hash();
 		}
+#endif
 
 		hash_value_t get_key() const
 		{
@@ -92,6 +168,50 @@ namespace NP {
 			return arrival;
 		}
 
+#ifdef GANG
+        //Generalise return cost depend on s
+        Time least_cost(unsigned long s = SINGLE_CORE) const
+        {
+            //costs[0] corresponds to s_min
+            assert((s - scores.s_min) >= 0 && ((s - scores.s_min) < costs.size()));
+            return costs[s - scores.s_min].from();
+        }
+        //Generalise return cost depend on s
+        Time maximal_cost(unsigned long s = SINGLE_CORE) const
+        {
+            //costs[0] corresponds to s_min
+            assert((s - scores.s_min) >= 0 && ((s - scores.s_min) < costs.size()));
+            return costs[s - scores.s_min].upto();
+        }
+        //Generalise return cost depend on s
+        const Interval<Time>& get_cost(unsigned long s = SINGLE_CORE) const
+        {
+            //costs[0] corresponds to s_min
+            assert((s - scores.s_min) >= 0 && ((s - scores.s_min) < costs.size()));
+            return costs[s - scores.s_min];
+        }
+
+        //used only in compute hash of a job to accumulate one value of costs min
+        Time get_add_cost_min() const
+        {
+		    Time acc = 0;
+		    for(auto i: costs)
+            {
+		        acc += i.min();
+            }
+		    return acc;
+        }
+        //used only in compute hash of a job to accumulate one value of costs max
+        Time get_add_cost_max() const
+        {
+            Time acc = 0;
+            for(auto i: costs)
+            {
+                acc += i.max();
+            }
+            return acc;
+        }
+#else
 		Time least_cost() const
 		{
 			return cost.from();
@@ -106,6 +226,7 @@ namespace NP {
 		{
 			return cost;
 		}
+#endif
 
 		Priority get_priority() const
 		{
@@ -138,6 +259,23 @@ namespace NP {
 		{
 			return id.task;
 		}
+
+#ifdef GANG
+        Scores get_scores() const
+		{
+			return scores;
+		}
+
+        unsigned long get_s_min() const
+        {
+            return scores.s_min;
+        }
+
+        unsigned long get_s_max() const
+        {
+            return scores.s_max;
+        }
+#endif
 
 		bool is(const JobID& search_id) const
 		{
@@ -184,13 +322,26 @@ namespace NP {
 			return j.scheduling_window();
 		}
 
+#ifdef GANG
+        //in order to print all costs and s!
 		friend std::ostream& operator<< (std::ostream& stream, const Job& j)
 		{
-			stream << "Job{" << j.id.job << ", " << j.arrival << ", "
-			       << j.cost << ", " << j.deadline << ", " << j.priority
-			       << ", " << j.id.task << "}";
+			stream << "Job{" << j.id.task << ", " << j.id.job << ", " << j.arrival << ", ";
+            for (auto i : j.costs)
+			    stream << i << ", ";
+			stream << j.deadline << ", " << j.priority
+			       << ", " << j.scores << "}";
 			return stream;
 		}
+#else
+        friend std::ostream& operator<< (std::ostream& stream, const Job& j)
+        {
+            stream << "Job{" << j.id.job << ", " << j.arrival << ", "
+                   << j.cost << ", " << j.deadline << ", " << j.priority
+                   << ", " << j.id.task << "}";
+            return stream;
+        }
+#endif
 
 	};
 

@@ -80,6 +80,15 @@ static Analysis_result analyze(
 		NP::parse_abort_file<Time>(aborts_in),
 		num_processors};
 
+#ifdef GANG
+    //check for all jobs if they we have enough processors to run them
+    for( auto it = problem.jobs.begin(); it!= problem.jobs.end();it++)
+    {
+        assert((*it).get_s_min() <= num_processors);
+        DM(*it << '\n');
+    }
+#endif
+
 	// Set common analysis options
 	NP::Analysis_options opts;
 	opts.timeout = timeout;
@@ -103,6 +112,35 @@ static Analysis_result analyze(
 	if (want_rta_file) {
 		rta << "Task ID, Job ID, BCCT, WCCT, BCRT, WCRT" << std::endl;
 		for (const auto& j : problem.jobs) {
+#ifdef GANG
+            rta << j.get_task_id() << ", "
+                << j.get_job_id() << ", ";
+                auto bcct = std::ostringstream();
+                auto wcct = std::ostringstream();
+                auto bcrt = std::ostringstream();
+                auto wcrt = std::ostringstream();
+                //if m > j.s_max then s_max = j.s_max s else s_max = m
+                auto s_max =  num_processors > j.get_s_max()? j.get_s_max() : num_processors;
+                for(unsigned int p = j.get_s_min(); p <= (s_max -1); p++ )
+                {
+                    Interval<Time> finish = space.get_finish_times(j,p);
+                    bcct << finish.from() << ":";
+                    wcct << finish.until() << ":";
+                    bcrt << std::max<long long>(0,(finish.from() - j.earliest_arrival())) << ":";
+                    wcrt << (finish.until() - j.earliest_arrival()) << ":";
+                }
+                Interval<Time> finish = space.get_finish_times(j,s_max);
+                bcct << finish.from();
+                wcct << finish.until();
+                bcrt << std::max<long long>(0,(finish.from() - j.earliest_arrival()));
+                wcrt << (finish.until() - j.earliest_arrival());
+
+            rta << bcct.str() << ", "
+                << wcct.str() << ", "
+                << bcrt.str() << ", "
+                << wcrt.str()
+                << std::endl;
+#else
 			Interval<Time> finish = space.get_finish_times(j);
 			rta << j.get_task_id() << ", "
 			    << j.get_job_id() << ", "
@@ -113,6 +151,7 @@ static Analysis_result analyze(
 			    << ", "
 			    << (finish.until() - j.earliest_arrival())
 			    << std::endl;
+#endif
 		}
 	}
 
