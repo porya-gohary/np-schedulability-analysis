@@ -42,6 +42,7 @@ namespace NP {
 	};
 
 #ifdef GANG
+	//a class to hold S_min and S_max for each job
     struct Scores {
         unsigned long s_min;
         unsigned long s_max;
@@ -75,7 +76,7 @@ namespace NP {
 #ifdef GANG
         //Define s_min,s_max
         Scores scores;
-        //0 corresponds to s_min
+        //0 position corresponds to s_min
         std::vector<Interval<Time>> costs;
 #else
 		Interval<Time> cost;
@@ -92,12 +93,14 @@ namespace NP {
 			key = (key << 4) ^ h(id.task);
 			key = (key << 4) ^ h(arrival.until());
 #ifdef GANG
+			//accumulate min costs only for hash
 			key = (key << 4) ^ h(get_add_cost_min());
 #else
 			key = (key << 4) ^ h(cost.from());
 #endif
 			key = (key << 4) ^ h(deadline);
 #ifdef GANG
+            //accumulate max costs only for hash
 			key = (key << 4) ^ h(get_add_cost_max());
 #else
 			key = (key << 4) ^ h(cost.upto());
@@ -105,6 +108,7 @@ namespace NP {
 			key = (key << 4) ^ h(id.job);
 			key = (key << 4) ^ h(priority);
 #ifdef GANG
+			//adding s_min and s_max to hash of a job
             key = (key << 4) ^ h(scores.s_min);
             key = (key << 4) ^ h(scores.s_max);
 #endif
@@ -119,7 +123,7 @@ namespace NP {
             unsigned long s_min,unsigned long s_max,
             unsigned long tid = 0)
                 : arrival(arr),
-                  costs(acosts), //multiple costs are used
+                  costs(acosts),
                   deadline(dl), priority(prio), id(id, tid),scores(s_min,s_max)
         {
             compute_hash();
@@ -129,9 +133,9 @@ namespace NP {
 			Interval<Time> arr, Interval<Time> cost,
 			Time dl, Priority prio,
 			unsigned long tid = 0)
-		: arrival(arr),
-		  deadline(dl), priority(prio), id(id, tid)
-		  ,scores(SINGLE_CORE,SINGLE_CORE)
+		    : arrival(arr),
+		    deadline(dl), priority(prio), id(id, tid)
+		    ,scores(SINGLE_CORE,SINGLE_CORE)
 		{
             costs.emplace_back(cost);
 			compute_hash();

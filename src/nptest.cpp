@@ -113,8 +113,11 @@ static Analysis_result analyze(
 		rta << "Task ID, Job ID, BCCT, WCCT, BCRT, WCRT" << std::endl;
 		for (const auto& j : problem.jobs) {
 #ifdef GANG
+		    //print response times file
+		    //generalise to p cores for each job
             rta << j.get_task_id() << ", "
                 << j.get_job_id() << ", ";
+                //create the string streams
                 auto bcct = std::ostringstream();
                 auto wcct = std::ostringstream();
                 auto bcrt = std::ostringstream();

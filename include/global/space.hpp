@@ -89,7 +89,8 @@ namespace NP {
 					return Interval<Time>{0, Time_model::constants<Time>::infinity()};
 				} else {
 #ifdef GANG
-                    // return the maximum if s_max = 1 then as before, to work as before
+                    // return the finish times,
+				    // if s_max = 1 then it works as before
                     auto it = rbounds->second.find(p);
                     //if p not found in the map
                     if (it == rbounds->second.end())
@@ -154,6 +155,7 @@ namespace NP {
 				const State* target;
 				const Interval<Time> finish_range;
 #ifdef GANG
+				//hold the start range also only at an edge
                 const Interval<Time> start_range;
                 unsigned int p;
 #endif
@@ -373,6 +375,7 @@ namespace NP {
 			{
 
 #ifdef GANG
+                //response times are updated to hold p as well
                 auto rbounds = r.find(id);
                 if (rbounds == r.end()) {
                     TG tmp = {{p,range}};
@@ -387,7 +390,6 @@ namespace NP {
                     {
                         it->second |= range;
                     }
-
                 }
                 DM("RTA " << id << ": " << r.find(id)->second.find(p)->second << " , p = " << p << std::endl);
 #else
@@ -468,12 +470,13 @@ namespace NP {
 							// of being scheduled before its deadline anymore.
 							// Abort.
 							aborted = true;
+#ifdef GANG
 							// create a dummy state for explanation purposes
-							auto frange = new_s.core_availability() + j.get_cost();
+							auto frange = new_s.core_availability() + j.get_cost(j.get_s_max());
 							const State& next =
 								new_state(new_s, index_of(j), predecessors_of(j),
 								          frange, frange, j.get_key());
-#ifdef GANG
+
 							// update response times
 							update_finish_times(j, frange,SINGLE_CORE);
 
@@ -481,7 +484,12 @@ namespace NP {
                             edges.emplace_back(&j, &new_s, &next,frange, frange,-1);
 #endif
 #else
-                            // update response times
+                            // create a dummy state for explanation purposes
+							auto frange = new_s.core_availability() + j.get_cost();
+							const State& next =
+								new_state(new_s, index_of(j), predecessors_of(j),
+								          frange, frange, j.get_key());
+							// update response times
 							update_finish_times(j, frange);
 
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
@@ -813,13 +821,9 @@ namespace NP {
             Time computeLST(
                     const State& s, const Job<Time>& j, Time &t_wc) const
             {
-                auto rt = ready_times(s, j);
+
                 //return core_availability of 1 core
                 auto at = s.core_availability();
-                Time est = std::max(rt.min(), at.min());
-
-                DM("rt: " << rt << std::endl
-                          << "at: " << at << std::endl);
 
                 auto t_high = next_higher_prio_job_ready(s, j, at.min());
 
@@ -854,7 +858,8 @@ namespace NP {
 
                 Time lst    = std::min(t_wc,
                                        t_high - Time_model::constants<Time>::epsilon());
-
+                DM("t_high: " << t_high << std::endl
+                          << "t_wc: " << t_wc << std::endl);
                 DM("lst: " << lst << std::endl);
 
                 return lst;
@@ -920,8 +925,8 @@ namespace NP {
                 for(unsigned int p = s_max; p >= j.get_s_min(); p-- )
                 {
 				    //TODO p == j.get_s_max() or p == s_max, where s_max = m if j.get_s_max() > m
-				    if( (s.core_availability_flag(p) == false) || (p == j.get_s_max()) )
-                    {
+				    //if( (s.core_availability_flag(p) == false) || (p == j.get_s_max()) )
+                    //{
                         bool eligibile = true;
 
                         auto estp = computeEST(s, j, p);
@@ -963,7 +968,7 @@ namespace NP {
                         edges.emplace_back(&j, &s, &next , stimes, ftimes, p);
 #endif
                         count_edge();
-                    }
+                    //}
                 }
 
 				return found_one;

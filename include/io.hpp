@@ -48,7 +48,7 @@ namespace NP {
 		skip_one(in, ',');
 	}
 #else
-    //return true if a field seperator is found
+    //return true if a field separator is found
     inline bool next_field(std::istream& in)
     {
         // eat up any trailing spaces
@@ -57,7 +57,7 @@ namespace NP {
         return skip_one(in, ',');
     }
 
-    //return true if a field seperator is found
+    //return true if a field separator is found
     inline bool next_field_colon(std::istream& in)
     {
         // eat up any trailing spaces
@@ -126,8 +126,10 @@ namespace NP {
 		Time arr_min, arr_max, cost_min, cost_max, dl, prio;
 #ifdef GANG
         std::vector<Interval<Time>> costs;
+        //temp vectors
         std::vector<Time> costs_min;
         std::vector<Time> costs_max;
+        //if s_min and s_max is not found set to 1
         unsigned long s_min = SINGLE_CORE, s_max = SINGLE_CORE;
 #endif
 
@@ -148,6 +150,7 @@ namespace NP {
 #endif
 
 #ifdef GANG
+        //Generalization to get all costs
         //eat comma
         next_field(in);
         in >> cost_min;
@@ -171,6 +174,7 @@ namespace NP {
             costs_max.emplace_back(cost_max);
         }
 
+        //check the size of costs min must be equal to costs max
         assert(costs_min.size() == costs_max.size());
 
         for(auto i=0;i<costs_min.size();i++)
@@ -182,7 +186,7 @@ namespace NP {
         in >> prio;
 
 #ifdef GANG
-        //parse s_min,s_max
+        //parse s_min,s_max if exists
 		if(next_field(in))
 		    in >> s_min;
         if(next_field(in))
@@ -209,6 +213,7 @@ namespace NP {
         }
 
 		//create the Job
+		//Only one contructor with S_min and S_max to 1
 		return Job<Time>{jid, Interval<Time>{arr_min, arr_max},
                               costs, dl, prio, s_min, s_max, tid};
 
