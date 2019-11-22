@@ -872,6 +872,7 @@ namespace NP {
                     const State& s, const Job<Time>& j, unsigned int p) const
             {
                 auto rt = ready_times(s, j);
+                DM("est: " << p << ":" <<  (std::max(rt.min(),  s.core_availability(p).min())) << std::endl);
                 return (std::max(rt.min(),  s.core_availability(p).min()));
             }
 
