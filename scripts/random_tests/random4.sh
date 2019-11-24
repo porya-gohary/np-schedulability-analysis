@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#NOT RANDOM TEST!
 i="0"
 MAXIMUM=10
 MAXIMUM_CORES=32
@@ -47,4 +47,7 @@ while [ $i -lt $MAXIMUM ]; do
 
     i=$[i+1]
 done
-#rm $SIM_RESULTS_FOLDER"/sim"*.csv
+#clean up only if not failed (exit 1)
+rm ./$SIM_RESULTS_FOLDER/*.csv
+rm task_*.csv
+rm test_*.csv

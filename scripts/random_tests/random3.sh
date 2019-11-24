@@ -32,7 +32,6 @@ while [ $i -lt $MAXIMUM ]; do
     BASE="../../../BASE-np-schedulability-analysis/cmake-build-release/nptest"
     BASE_STR="base_"
 
-    #GANG="../../../gang-np-schedulability-analysis/cmake-build-debug/nptest"
     GANG="../../cmake-build-release/nptest"
     GANG_STR="gang_"
 
