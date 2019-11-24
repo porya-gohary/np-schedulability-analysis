@@ -81,9 +81,6 @@ def parse_dag_task_file(fname, fixed, scale=ms2us):
             r_min = scale(float(row[3]))
             r_max = scale(float(row[4]))
 
-            r_min = scale(float(row[3]))
-            r_max = scale(float(row[4]))
-
             # parse bcet and wcet
             # check for all c_min and c_max
             arr_bcet = []

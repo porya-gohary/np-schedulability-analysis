@@ -1,11 +1,11 @@
 #!/bin/bash
 # Second test with precedence contraint from 1 to m cores!!!
 i="0"
-MAXIMUM=10
-MAXIMUM_CORES=10
-NUMBER_OF_TASKS=3
-MAXIMUM_JOBS_PER_TASK=6
-MAXIMUM_PRECEDENCE=2
+MAXIMUM=20 #number of tests
+MAXIMUM_CORES=12 #each test from 1 to m cores
+NUMBER_OF_TASKS=3 #number of random tasks created
+MAXIMUM_JOBS_PER_TASK=6 #each task may have from 1 to 6 vertices
+MAXIMUM_PRECEDENCE_PER_JOB=3 #each job may have from 0 to 3 precedence contraints
 
 while [ $i -le $MAXIMUM ]; do
   echo "-------- Random test " $i "--------"
@@ -18,8 +18,8 @@ while [ $i -le $MAXIMUM ]; do
   PRECEDENCE_OUTPUT=$JOBS"-pre"$EXTENSION
 
   #generate random DAG tests
-  GENERATE="../random_tasks.py"
-  python3 $GENERATE --save $GEN_OUTPUT -t $NUMBER_OF_TASKS -j $MAXIMUM_JOBS_PER_TASK -p $MAXIMUM_PRECEDENCE
+  GENERATE="../random-tasks.py"
+  python3 $GENERATE --save $GEN_OUTPUT -t $NUMBER_OF_TASKS -j $MAXIMUM_JOBS_PER_TASK -p $MAXIMUM_PRECEDENCE_PER_JOB
 
   #convert them DAG tasks to jobs
   CONVERT="../dag-tasks-to-jobs.py"
@@ -29,10 +29,10 @@ while [ $i -le $MAXIMUM ]; do
   SIM_RESULTS_FOLDER="sim_results"
   mkdir -p $SIM_RESULTS_FOLDER
 
-  BASE="../../../BASE-np-schedulability-analysis/cmake-build-debug/nptest"
+  BASE="../../../BASE-np-schedulability-analysis/cmake-build-release/nptest"
   BASE_STR="base_"
 
-  GANG="../../cmake-build-debug/nptest"
+  GANG="../../cmake-build-release/nptest"
   GANG_STR="gang_"
 
   CORES=1
@@ -61,4 +61,7 @@ while [ $i -le $MAXIMUM ]; do
   done
   i=$[i+1]
 done
-#rm $SIM_RESULTS_FOLDER"/sim"*.csv
+#clean up only if not failed (exit 1)
+rm ./$SIM_RESULTS_FOLDER/*.csv
+rm task_*.csv
+rm test_*.csv

@@ -1,0 +1,5 @@
+   Task ID,     Job ID,          Arrival min,          Arrival max,        Cost min(s_i),        Cost max(s_i),             Deadline,             Priority,           Scores min,           Scores max
+         1,          1,                    0,                    1, 11                  , 17                  ,                   52,                   52,                    2,                    2
+         2,          1,                    8,                   26, 5                   , 20                  ,                   99,                   99,                    2,                    2
+         1,          2,                   30,                   31, 11                  , 17                  ,                   82,                   82,                    2,                    2
+         2,          2,                   15,                   35, 20                  , 26                  ,                   99,                   99,                    2,                    2

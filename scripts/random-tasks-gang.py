@@ -40,7 +40,7 @@ def task_format_csv(j):
     return "{0:1},{1:1},{2:1},{3:1}\n".format(*j)
 
 def job_format_csv(j):
-    return "{0:1},{1:1},{2:1},{3:1},{4:1},{5:1},{6:1}".format(*j)
+    return "{0:1},{1:1},{2:1},{3:1},{4:1},{5:1},{6:1},{7:1},{8:1}\n".format(*j)
 
 def write_tasks_jobs(fname, tasks, jobs):
     f = open(fname, 'w')
@@ -49,10 +49,6 @@ def write_tasks_jobs(fname, tasks, jobs):
 
     for j in jobs:
         f.write(job_format_csv(jobs[j]))
-        prec= str(jobs[j][7])
-        if prec != '':
-            prec= "," + prec
-        f.write(str(prec) + "\n")
     f.close()
 
 def parse_args():
@@ -71,9 +67,9 @@ def parse_args():
                         action='store',
                         help='maximum number')
 
-    parser.add_argument('-p', '--precedence', dest='prec', default=0,
+    parser.add_argument('-p', '--parallel', dest='max_parallel', default=1,
                         action='store',
-                        help='maximum precedence per job')
+                        help='maximum parallelism per job')
 
     parser.add_argument('--save', default=None, dest='save',
                         required=True,
@@ -99,7 +95,7 @@ def generate_tasks(n_tasks,maxim):
 
     return all_tasks
 
-def generate_jobs(n_tasks, n_jobs, m_pre, all_tasks):
+def generate_jobs(n_tasks, n_jobs, max_parallel, all_tasks):
     all_jobs = {}
     for i in range(n_tasks):
         length=random.randrange(1,n_jobs)
@@ -110,31 +106,44 @@ def generate_jobs(n_tasks, n_jobs, m_pre, all_tasks):
             job_id=j+1
             r_min=random.randrange(0,int(period/4)+1)
             r_max=r_min + random.randrange(0,int(period/4)+1)
-            bcet=random.randrange(0,int(deadline/4)+1)
-            wcet=bcet + random.randrange(0,int(deadline/4)+1)
-            #generate precedence
 
-            str_pre = ""
-            if m_pre >= 1 and length > 1:
-                if m_pre > length:
-                    m_pre = length;
+            s_min=random.randrange(1,max_parallel+1)
+            s_max=random.randrange(s_min,max_parallel+1)
 
-                pre = random.randrange(0, m_pre)
-                for p in range(pre):
-                    str_pre = str_pre + str(random.randrange(1,length)) + ","
-                str_pre = str(random.randrange(1,length))
+            str_bcet=""
+            str_wcet=""
+            bcet = {}
+            wcet = {}
+            bcet[s_min] = random.randrange(1, int(deadline / 6) + 2)
+            wcet[s_min] = bcet[s_min] + random.randrange(1, int(deadline / 6) + 2)
+            for k in range(s_min+1,s_max+1):
+                bcet[k] = random.randrange(1,bcet[k-1]+1)
+                wcet[k] = bcet[k]+random.randrange(1,wcet[k-1]+1)
 
-            all_jobs["T" + str(task_id) + "J" + str(job_id)] = ('V',task_id,job_id,r_min,r_max,bcet,wcet,str_pre)
+            lbcet = [t1 for key,t1 in bcet.items()]
+            lwcet = [t1 for key, t1 in wcet.items()]
+
+            for b in lbcet[:-1]:
+                str_bcet = str_bcet + str(b) + ":"
+
+            for b in lwcet[:-1]:
+                str_wcet = str_wcet + str(b) + ":"
+
+            str_bcet= str_bcet + str(lbcet[-1])
+            str_wcet= str_wcet + str(lwcet[-1])
+
+
+            all_jobs["T" + str(task_id) + "J" + str(job_id)] = ('V',task_id,job_id,r_min,r_max,str_bcet,str_wcet,s_min,s_max)
 
     return all_jobs;
 
 def main():
     opts = parse_args()
 
-    #random.seed(1)
+    #random.seed() #by-default current system time is used as a seed value
 
     all_tasks = generate_tasks(int(opts.tasks), int(opts.max))
-    all_jobs = generate_jobs(int(opts.tasks), int(opts.jobs), int(opts.prec), all_tasks)
+    all_jobs = generate_jobs(int(opts.tasks), int(opts.jobs), int(opts.max_parallel), all_tasks)
 
     #print (all_tasks)
     #print(all_jobs)
