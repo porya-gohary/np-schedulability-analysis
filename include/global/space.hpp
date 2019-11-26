@@ -453,7 +453,12 @@ namespace NP {
 				return predecessors[index_of(j)];
 			}
 
-			void check_for_deadline_misses(const State& old_s, const State& new_s)
+			void check_for_deadline_misses(const State& old_s, const State& new_s
+#ifdef GANG
+                    , unsigned int p)
+#else
+            )
+#endif
 			{
 				auto check_from = old_s.core_availability().min();
 				auto earliest   = new_s.core_availability().min();
@@ -472,16 +477,16 @@ namespace NP {
 							aborted = true;
 #ifdef GANG
 							// create a dummy state for explanation purposes
-							auto frange = new_s.core_availability() + j.get_cost(j.get_s_max());
+							auto frange = new_s.core_availability(p) + j.get_cost(p);
 							const State& next =
 								new_state(new_s, index_of(j), predecessors_of(j),
 								          frange, frange, j.get_key());
 
 							// update response times
-							update_finish_times(j, frange,SINGLE_CORE);
+							update_finish_times(j, frange, p);
 
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
-                            edges.emplace_back(&j, &new_s, &next,frange, frange,-1);
+                            edges.emplace_back(&j, &new_s, &next,frange, frange,p);
 #endif
 #else
                             // create a dummy state for explanation purposes
@@ -846,6 +851,8 @@ namespace NP {
 
                             if(it_j.higher_priority_than(j))
                             {
+                                if(it_j.get_s_min() <= j.get_s_max())
+                                    lt_wc = r_max;
                                 min_t_high = std::min(min_t_high,lt_wc);
                             }
                         }
@@ -915,6 +922,7 @@ namespace NP {
 #else
                 //if m > j.s_max then s_max = j.s_max s else s_max = m
                 auto s_max =  s.num_processors() > j.get_s_max()? j.get_s_max() : s.num_processors();
+
                 //return true if at least one job on p cores is dispatched
                 bool found_one = false;
 
@@ -931,6 +939,7 @@ namespace NP {
                         bool eligibile = true;
 
                         auto estp = computeEST(s, j, p);
+
 
                         //check Eligibility condition
                         if (estp > lst) eligibile = false;
@@ -963,7 +972,7 @@ namespace NP {
                                                                 stimes, ftimes, j.get_key(), p);
 
                         // make sure we didn't skip any jobs
-                        check_for_deadline_misses(s, next);
+                        check_for_deadline_misses(s, next, p);
 
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
                         edges.emplace_back(&j, &s, &next , stimes, ftimes, p);

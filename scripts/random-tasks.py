@@ -110,8 +110,8 @@ def generate_jobs(n_tasks, n_jobs, m_pre, all_tasks):
             job_id=j+1
             r_min=random.randrange(0,int(period/4)+1)
             r_max=r_min + random.randrange(0,int(period/4)+1)
-            bcet=random.randrange(1,int(deadline/4)+2)
-            wcet=bcet + random.randrange(1,int(deadline/4)+2)
+            bcet=random.randrange(1,int(deadline/6)+2)
+            wcet=bcet + random.randrange(1,int(deadline/6)+2)
             #generate precedence
 
             str_pre = ""
