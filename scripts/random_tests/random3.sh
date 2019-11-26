@@ -28,13 +28,13 @@ GANG_STR="gang_"
 cleanup;
 
 #Parameters
-MAXIMUM_PER_SCENARIO=20 #number of tests per scenario
+MAXIMUM_PER_SCENARIO=10 #number of tests per scenario
 MAXIMUM_CORES=32 #each test randomly choosen from 1 to m cores
 MAXIMUM_JOBS_PER_TASK=10 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=4 #maximum tasks
 # timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
 # only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
-TIMEOUT=180 #in seconds
+TIMEOUT=100 #in seconds
 
 #Initialise
 i=0

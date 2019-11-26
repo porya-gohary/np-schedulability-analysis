@@ -1,27 +1,40 @@
 #!/bin/bash
 # First test no precedence contraint from 1 to m cores!!!
 
+# Constants
+#---------------------------------------#
 SIM_RESULTS_FOLDER="sim_results"
+GENERATE_TASKS_FOLDER="generate_tasks"
 mkdir -p $SIM_RESULTS_FOLDER
+mkdir -p $GENERATE_TASKS_FOLDER
 
 function cleanup() {
     #clean up
     rm ./$SIM_RESULTS_FOLDER/*.csv
-    rm task_*.csv
-    rm test_*.csv
-    rm edge.csv
+    rm ./$GENERATE_TASKS_FOLDER/*.csv
 }
+
+GENERATE="../random-tasks.py"
+CONVERT="../dag-tasks-to-jobs-gang.py"
+
+BASE="../../../BASE-np-schedulability-analysis/cmake-build-release/nptest"
+BASE_STR="base_"
+
+GANG="../../cmake-build-release/nptest"
+GANG_STR="gang_"
+#---------------------------------------#
+
 #clean up
 cleanup;
 
 #Parameters
-MAXIMUM_PER_SCENARIO=20 #number of tests per scenario
-MAXIMUM_CORES=32 #each test randomly choosen from 1 to m cores
-MAXIMUM_JOBS_PER_TASK=10 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
+MAXIMUM_PER_SCENARIO=10 #number of tests per scenario
+MAXIMUM_CORES=16 #each test randomly choosen from 1 to m cores
+MAXIMUM_JOBS_PER_TASK=8 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=4 #maximum tasks
 # timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
 # only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
-TIMEOUT=180
+TIMEOUT=100 #in seconds
 
 #Initialise
 i=0
@@ -37,48 +50,51 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
     echo "-------- Scenario = Tasks:" $NUMBER_OF_TASKS " ,Jobs:" $JOBS_PER_TASK " --------"
     while [ $i -lt $MAXIMUM_PER_SCENARIO ]; do
         echo "-------- Random test " $i "--------"
-
         TASK="task_"$i
         JOBS="test_"$i
         EXTENSION=".csv"
 
-        GEN_OUTPUT=$TASK$EXTENSION
-        JOBS_OUTPUT=$JOBS$EXTENSION
+        GEN_OUTPUT=$GENERATE_TASKS_FOLDER"/"$TASK$EXTENSION
+        JOBS_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS$EXTENSION
 
         #generate random DAG tests
-        GENERATE="../random-tasks.py"
         python3 $GENERATE --save $GEN_OUTPUT -t $NUMBER_OF_TASKS -j $JOBS_PER_TASK -p 0
 
         #convert them DAG tasks to jobs with fixed one core
-        CONVERT="../dag-tasks-to-jobs-gang.py"
-        python3 $CONVERT $GEN_OUTPUT $JOBS_OUTPUT edge.csv --fixed 1
-
-        BASE="../../../BASE-np-schedulability-analysis/cmake-build-release/nptest"
-        BASE_STR="base_"
-
-        GANG="../../cmake-build-release/nptest"
-        GANG_STR="gang_"
+        python3 $CONVERT $GEN_OUTPUT $JOBS_OUTPUT $GENERATE_TASKS_FOLDER"/"edge.csv --fixed 1
 
         CORES=1
         while [ $CORES -le $MAXIMUM_CORES ]; do
-          echo "Running with " $CORES " cores"
 
-          #run simulation base
-          ./$BASE -r -m $CORES $JOBS_OUTPUT
+          BOOL_TIMEOUT=false
+
           OUTPUT_BASE=$SIM_RESULTS_FOLDER"/"$BASE_STR$JOBS".rta"$EXTENSION
-          mv $JOBS".rta"$EXTENSION $OUTPUT_BASE
-
-          #run simulation gang
-          ./$GANG -r -m $CORES $JOBS_OUTPUT
           OUTPUT_GANG=$SIM_RESULTS_FOLDER"/"$GANG_STR$JOBS".rta"$EXTENSION
-          mv $JOBS".rta"$EXTENSION $OUTPUT_GANG
 
-          DIFF=$(diff $OUTPUT_BASE $OUTPUT_GANG)
-          if [ "$DIFF" != "" ]
-          then
-            echo "-------------FILES DIFFERS-----------"
-            echo $DIFF
-            exit 1
+          echo "Running base with " $CORES " cores"
+          ./timeout3.sh -t $TIMEOUT ./$BASE -m $CORES $JOBS_OUTPUT -r
+          RTA_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS".rta"$EXTENSION
+
+          if [ -f $RTA_OUTPUT ]; then
+            mv $RTA_OUTPUT $OUTPUT_BASE
+
+            #run simulation gang if base is not timeout -> gang needs a little more time (few seconds)
+            echo "Running gang with " $CORES " cores"
+            ./$GANG -m $CORES $JOBS_OUTPUT -r
+            mv $RTA_OUTPUT $OUTPUT_GANG
+
+          else
+            BOOL_TIMEOUT=true
+          fi
+
+          if [ $BOOL_TIMEOUT == false ]; then
+            DIFF=$(diff $OUTPUT_BASE $OUTPUT_GANG)
+            if [ "$DIFF" != "" ]
+            then
+              echo "-------------FILES DIFFERS-----------"
+              echo "$DIFF"
+              exit 1; #FAILED EXIT SCRIPT
+            fi
           fi
 
           CORES=$[CORES+1]
