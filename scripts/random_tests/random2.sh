@@ -29,10 +29,10 @@ cleanup;
 
 #Parameters
 MAXIMUM_PER_SCENARIO=10 #number of tests per scenario
-MAXIMUM_CORES=16 #each test randomly choosen from 1 to m cores
+MAXIMUM_CORES=32 #each test randomly choosen from 1 to m cores
 MAXIMUM_JOBS_PER_TASK=8 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=3 #maximum tasks
-MAXIMUM_PRECEDENCE_PER_JOB=2 #each job may have from 0 to 3 precedence contraints
+MAXIMUM_PRECEDENCE_PER_JOB=3 #each job may have from 0 to 3 precedence contraints
 # timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
 # only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
 TIMEOUT=100 #in seconds
@@ -40,7 +40,7 @@ TIMEOUT=100 #in seconds
 #Initialise counters
 i=0
 NUMBER_OF_TASKS=2 #number of random tasks created
-JOBS_PER_TASK=2 #each task may have from 1 to JOBS_PER_TASK vertices
+JOBS_PER_TASK=3 #each task may have from 1 to JOBS_PER_TASK vertices
 
 while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
   while [ $JOBS_PER_TASK -le $MAXIMUM_JOBS_PER_TASK ]; do
@@ -57,7 +57,7 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
 
       GEN_OUTPUT=$GENERATE_TASKS_FOLDER"/"$TASK$EXTENSION
       JOBS_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS$EXTENSION
-      PRECEDENCE_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS"-pre"$EXTENSION
+      PRECEDENCE_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS".prec"$EXTENSION
 
       #generate random DAG tests
       python3 $GENERATE --save $GEN_OUTPUT -t $NUMBER_OF_TASKS -j $MAXIMUM_JOBS_PER_TASK -p $MAXIMUM_PRECEDENCE_PER_JOB
@@ -106,7 +106,7 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
     i=0
     JOBS_PER_TASK=$[JOBS_PER_TASK+1]
   done
-  JOBS_PER_TASK=2
+  JOBS_PER_TASK=3
   NUMBER_OF_TASKS=$[NUMBER_OF_TASKS+1]
 done
 #clean up only if not failed (exit 1)

@@ -102,9 +102,13 @@ def parse_dag_task_file(fname, fixed, scale=ms2us):
             try:
                 scores_min = int(row[7])
                 scores_max = int(row[8])
+                preds = [int(pred) for pred in row[9:]]
             except IndexError:
                 scores_min = fixed
                 scores_max = fixed
+                preds = [int(pred) for pred in row[7:]]
+
+
 
             assert 0 <= r_min <= r_max
             for j in range(len(arr_bcet)):
@@ -118,7 +122,7 @@ def parse_dag_task_file(fname, fixed, scale=ms2us):
             assert vid >= 0
             assert tid >= 0
 
-            nodes[tid].append((vid, r_min, r_max, arr_bcet, arr_wcet, scores_min, scores_max))
+            nodes[tid].append((vid, r_min, r_max, arr_bcet, arr_wcet, scores_min, scores_max, preds))
         else:
             print(row)
             assert False # badly formatted input???
@@ -136,11 +140,16 @@ def mkjobs(tid, num_task_instances, period, deadline, nodes, mkprio):
         prio = mkprio(tid, adl, period)
         jid = i * next_power_of_10(len(nodes)) + 1
         vid2jid = {}
-        for (vid, r_min, r_max, bcet, wcet, scores_min, scores_max) in nodes:
+        for (vid, r_min, r_max, bcet, wcet, scores_min, scores_max, preds) in nodes:
             vid2jid[vid] = jid
             jobs.append(
                 (tid, jid, rel + r_min, rel + r_max, bcet, wcet, adl, prio, scores_min, scores_max))
             jid += 1
+
+        for (vid, r_min, r_max, bcet, wcet, scores_min, scores_max, preds) in nodes:
+            for p in preds:
+                edges.append((tid, vid2jid[p], tid, vid2jid[vid]))
+
     return jobs, edges
 
 def job_format_csv(j):
