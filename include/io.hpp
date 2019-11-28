@@ -126,7 +126,7 @@ namespace NP {
 		Time arr_min, arr_max, cost_min, cost_max, dl, prio;
 #ifdef GANG
         std::vector<Interval<Time>> costs;
-        //temp vectors
+        //temporary vectors
         std::vector<Time> costs_min;
         std::vector<Time> costs_max;
         //if s_min and s_max is not found set to 1
@@ -206,8 +206,8 @@ namespace NP {
         {
 		    if ((costs[i-1].from() < costs[i].from()) || (costs[i-1].upto() < costs[i].upto()))
             {
-		        std::wcerr << "Warning T" << tid << "J" << jid <<
-		            " Execution times between more cores are larger than less cores" << std::endl;
+		        std::cerr << "Warning T" << std::to_string(tid) << "J" << jid <<
+		        " Execution times between more cores are larger than less cores" << std::endl;
 		        break;
             }
         }

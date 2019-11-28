@@ -120,11 +120,11 @@ namespace NP {
         Job(unsigned long id,
             Interval<Time> arr, std::vector<Interval<Time>> &acosts,
             Time dl, Priority prio,
-            unsigned long s_min,unsigned long s_max,
+            unsigned long s_min, unsigned long s_max,
             unsigned long tid = 0)
                 : arrival(arr),
                   costs(acosts),
-                  deadline(dl), priority(prio), id(id, tid),scores(s_min,s_max)
+                  deadline(dl), priority(prio), id(id, tid),scores(s_min, s_max)
         {
             compute_hash();
         }
@@ -135,7 +135,7 @@ namespace NP {
 			unsigned long tid = 0)
 		    : arrival(arr),
 		    deadline(dl), priority(prio), id(id, tid)
-		    ,scores(SINGLE_CORE,SINGLE_CORE)
+		    ,scores(SINGLE_CORE, SINGLE_CORE)
 		{
             costs.emplace_back(cost);
 			compute_hash();

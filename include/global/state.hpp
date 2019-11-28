@@ -82,6 +82,41 @@ namespace NP {
 					ca.push_back(std::max(est, from.core_avail[i].max()));
 				}
 
+#ifdef GANG
+                // update scheduled jobs
+                // map is already sorted to make it easier to merge
+                //TODO optimize structure
+                bool added_j = false;
+                for (auto rj = from.certain_jobs.begin(); rj != from.certain_jobs.end(); rj++) {
+                    auto x = rj->first;
+                    //rj->second.first = Interval<Time> EFT,LFT
+                    auto x_eft = rj->second.first.min();
+                    auto x_lft = rj->second.first.max();
+                    if (contains(predecessors, x)) {
+                        if (lst < x_lft) {
+                            //rj->second.second = minimum p
+                            for(auto l=1; l <= rj->second.second;l++) {
+                                auto pos = std::find(ca.begin(), ca.end(), x_lft);
+                                if (pos != ca.end())
+                                    *pos = lst;
+                            }
+                        }
+                    } else if (lst <= x_eft) {
+                        if (!added_j && rj->first > j) {
+                            // right place to add j
+                            certain_jobs.emplace(j, std::make_pair(finish_times, p));
+                            added_j = true;
+                        }
+                        certain_jobs.emplace((*rj));
+                    }
+                }
+                // if we didn't add it yet, add it at the back
+                if (!added_j)
+                    //TODO: emplace -> insert element only if key is never added before added can safely removed
+                    certain_jobs.emplace(j, std::make_pair(finish_times, p));
+
+#else
+
 				// update scheduled jobs
 				// keep it sorted to make it easier to merge
 				bool added_j = false;
@@ -107,7 +142,7 @@ namespace NP {
 				// if we didn't add it yet, add it at the back
 				if (!added_j)
 					certain_jobs.emplace_back(j, finish_times);
-
+#endif
 
 				// sort in non-decreasing order
 				std::sort(pa.begin(), pa.end());
@@ -154,7 +189,35 @@ namespace NP {
 				for (int i = 0; i < core_avail.size(); i++)
 					core_avail[i] |= other.core_avail[i];
 
-				// vector to collect joint certain jobs
+#ifdef GANG
+                // map to collect joint certain jobs
+                std::map<Job_index, std::pair<Interval<Time>, unsigned int>> new_cj;
+
+                // walk both sorted job lists to see if we find matches
+                auto it = certain_jobs.begin();
+                auto jt = other.certain_jobs.begin();
+                while (it != certain_jobs.end() &&
+                       jt != other.certain_jobs.end()) {
+                    if (it->first == jt->first) {
+                        // same job
+                        new_cj.emplace(it->first,
+                                //merge EFT,LFT
+                                std::make_pair(it->second.first | jt->second.first,
+                                        //merge p (minimum of both)
+                                        std::min(it->second.second,jt->second.second)));
+                        it++;
+                        jt++;
+                    } else if (it->first < jt->first)
+                        it++;
+                    else
+                        jt++;
+                }
+                // move new certain jobs into the state
+                //TODO: investigate if it is safe??? new_cj is deleted!!!
+                certain_jobs.swap(new_cj);
+
+#else
+                // vector to collect joint certain jobs
 				std::vector<std::pair<Job_index, Interval<Time>>> new_cj;
 
 				// walk both sorted job lists to see if we find matches
@@ -174,7 +237,7 @@ namespace NP {
 				}
 				// move new certain jobs into the state
 				certain_jobs.swap(new_cj);
-
+#endif
 				DM("+++ merged " << other << " into " << *this << std::endl);
 
 				return true;
@@ -186,7 +249,7 @@ namespace NP {
 			}
 
 #ifdef GANG
-            //return number of available processors
+            //return number of available processors depending on core_avail size
             const unsigned int num_processors() const
             {
                 assert(core_avail.size() > 0);
@@ -211,6 +274,23 @@ namespace NP {
 			}
 #endif
 
+#ifdef GANG
+            //return the finishing time depending on index j
+            //certain jobs is now a map not a vector
+            bool get_finish_times(Job_index j, Interval<Time> &ftimes) const
+            {
+                auto rj = certain_jobs.find(j);
+                if( rj == certain_jobs.end())
+                {
+                    return false;
+                }
+                else
+                {
+                    ftimes = rj->second.first;
+                    return true;
+                }
+            }
+#else
 			bool get_finish_times(Job_index j, Interval<Time> &ftimes) const
 			{
 				for (const auto& rj : certain_jobs) {
@@ -228,6 +308,7 @@ namespace NP {
 				}
 				return false;
 			}
+#endif
 
 			const bool job_incomplete(Job_index j) const
 			{
@@ -249,8 +330,14 @@ namespace NP {
 				for (const auto& a : s.core_avail)
 					stream << "[" << a.from() << ", " << a.until() << "] ";
 				stream << "(";
+#ifdef GANG
+				//print certainly running jobs
+                for (auto rj = s.certain_jobs.begin(); rj != s.certain_jobs.end(); rj++)
+                    stream << rj->first << "";
+#else
 				for (const auto& rj : s.certain_jobs)
 					stream << rj.first << "";
+#endif
 				stream << ") " << s.scheduled_jobs << ")";
 				stream << " @ " << &s;
 				return stream;
@@ -264,6 +351,17 @@ namespace NP {
 				out << "\\n";
 				bool first = true;
 				out << "{";
+#ifdef GANG
+				//print certainly running jobs in the graph
+                for (auto rj = certain_jobs.begin(); rj != certain_jobs.end(); rj++) {
+                    if (!first)
+                        out << ", ";
+                    out << "T" << jobs[rj->first].get_task_id()
+                        << "J" << jobs[rj->first].get_job_id() << ":"
+                        << rj->second.first.min() << "-" << rj->second.first.max() << ":" << rj->second.second;
+                    first = false;
+                }
+#else
 				for (const auto& rj : certain_jobs) {
 					if (!first)
 						out << ", ";
@@ -272,6 +370,7 @@ namespace NP {
 					    << rj.second.min() << "-" << rj.second.max();
 					first = false;
 				}
+#endif
 				out << "}";
 			}
 
@@ -282,8 +381,13 @@ namespace NP {
 			// set of jobs that have been dispatched (may still be running)
 			const Index_set scheduled_jobs;
 
+#ifdef GANG
+            // imprecise set of certainly running jobs including p
+            std::map<Job_index,std::pair<Interval<Time>, unsigned int>> certain_jobs;
+#else
 			// imprecise set of certainly running jobs
 			std::vector<std::pair<Job_index, Interval<Time>>> certain_jobs;
+#endif
 
 			// system availability intervals
 			std::vector<Interval<Time>> core_avail;

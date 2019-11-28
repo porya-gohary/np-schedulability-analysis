@@ -78,9 +78,13 @@ namespace NP {
 				return explore(p, o);
 			}
 
+			//get BCRT,WCRT of a given job on p cores if they are exists
+			//if p is not define then get
+			// min over p of all BCRT
+			// max over p of all WCRT
 			Interval<Time> get_finish_times(const Job<Time>& j
 #ifdef GANG
-            , unsigned int p = SINGLE_CORE
+            , unsigned int p = std::numeric_limits<unsigned int>::max()
 #endif
 			) const
 			{
@@ -89,10 +93,25 @@ namespace NP {
 					return Interval<Time>{0, Time_model::constants<Time>::infinity()};
 				} else {
 #ifdef GANG
-                    // return the finish times,
+                    // return the finish times minimum BCRT and maximum WCRT over all p
+				    if(p == std::numeric_limits<unsigned int>::max())
+                    {
+				        Time min_bcrt = Time_model::constants<Time>::infinity();
+				        Time max_wcrt = 0;
+
+                        for(const auto& it : rbounds->second)
+                        {
+                            min_bcrt = std::min(min_bcrt,it.second.min());
+                            max_wcrt = std::max(max_wcrt,it.second.max());
+                        }
+
+                        return Interval<Time>{min_bcrt, max_wcrt};
+
+                    }
+				    // if p is given
 				    // if s_max = 1 then it works as before
                     auto it = rbounds->second.find(p);
-                    //if p not found in the map
+                    //if p is not found in the map
                     if (it == rbounds->second.end())
                     {
                         return Interval<Time>{0, Time_model::constants<Time>::infinity()};
@@ -157,6 +176,7 @@ namespace NP {
 #ifdef GANG
 				//hold the start range also only at an edge
                 const Interval<Time> start_range;
+                //hold the choosen runing p in an edge
                 unsigned int p;
 #endif
 
@@ -252,6 +272,7 @@ namespace NP {
 			typedef Interval_lookup_table<Time, Job<Time>, Job<Time>::scheduling_window> Jobs_lut;
 
 #ifdef GANG
+			//response times now are unorder map of TG to hold for every p
             typedef std::unordered_map<JobID, TG> Response_times;
 #else
 			typedef std::unordered_map<JobID, Interval<Time> > Response_times;
@@ -365,6 +386,7 @@ namespace NP {
 				return dl;
 			}
 
+			//update rta at p
 			void update_finish_times(Response_times& r, const JobID& id,
 			                         Interval<Time> range
 #ifdef GANG
@@ -460,14 +482,15 @@ namespace NP {
             )
 #endif
 			{
+#ifdef GANG
 				auto check_from = old_s.core_availability().min();
-				auto earliest   = new_s.core_availability().min();
 
 				// check if we skipped any jobs that are now guaranteed
 				// to miss their deadline
 				for (auto it = jobs_by_deadline.lower_bound(check_from);
 				     it != jobs_by_deadline.end(); it++) {
 					const Job<Time>& j = *(it->second);
+                    auto earliest = new_s.core_availability(j.get_s_min()).min();
 					if (j.get_deadline() < earliest) {
 						if (unfinished(new_s, j)) {
 							DM("deadline miss: " << new_s << " -> " << j << std::endl);
@@ -475,7 +498,7 @@ namespace NP {
 							// of being scheduled before its deadline anymore.
 							// Abort.
 							aborted = true;
-#ifdef GANG
+
 							// create a dummy state for explanation purposes
 							auto frange = new_s.core_availability(p) + j.get_cost(p);
 							const State& next =
@@ -488,19 +511,6 @@ namespace NP {
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
                             edges.emplace_back(&j, &new_s, &next,frange, frange,p);
 #endif
-#else
-                            // create a dummy state for explanation purposes
-							auto frange = new_s.core_availability() + j.get_cost();
-							const State& next =
-								new_state(new_s, index_of(j), predecessors_of(j),
-								          frange, frange, j.get_key());
-							// update response times
-							update_finish_times(j, frange);
-
-#ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
-							edges.emplace_back(&j, &new_s, &next, frange);
-#endif
-#endif
 							count_edge();
 							break;
 						}
@@ -508,6 +518,41 @@ namespace NP {
 						// deadlines now after the next earliest finish time
 						break;
 				}
+
+#else
+                auto check_from = old_s.core_availability().min();
+                auto earliest   = new_s.core_availability().min();
+
+                // check if we skipped any jobs that are now guaranteed
+                // to miss their deadline
+                for (auto it = jobs_by_deadline.lower_bound(check_from);
+                     it != jobs_by_deadline.end(); it++) {
+                    const Job<Time>& j = *(it->second);
+                    if (j.get_deadline() < earliest) {
+                        if (unfinished(new_s, j)) {
+                            DM("deadline miss: " << new_s << " -> " << j << std::endl);
+                            // This job is still incomplete but has no chance
+                            // of being scheduled before its deadline anymore.
+                            // Abort.
+                            aborted = true;
+                            // create a dummy state for explanation purposes
+                            auto frange = new_s.core_availability() + j.get_cost();
+                            const State& next =
+                                    new_state(new_s, index_of(j), predecessors_of(j),
+                                              frange, frange, j.get_key());
+                            // update response times
+                            update_finish_times(j, frange);
+#ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
+                            edges.emplace_back(&j, &new_s, &next, frange);
+#endif
+                            count_edge();
+                            break;
+                        }
+                    } else
+                        // deadlines now after the next earliest finish time
+                        break;
+                }
+#endif
 			}
 
 			void make_initial_state()
@@ -824,18 +869,19 @@ namespace NP {
 #ifdef GANG
             // assumes j is ready
             Time computeLST(
-                    const State& s, const Job<Time>& j, Time &t_wc) const
+                    const State& s, const Job<Time>& reference_job, Time t_wc) const
             {
 
                 //return core_availability of 1 core
                 auto at = s.core_availability();
-
-                auto t_high = next_higher_prio_job_ready(s, j, at.min());
+                //t_high as base code
+                auto t_high = next_higher_prio_job_ready(s, reference_job, at.min());
 
                 // calculate new t_wc and t_high NAIVE!!!!!
                 // TODO make it efficient with a WINDOW!!!
-                if( j.get_s_max() != SINGLE_CORE )
+                if( reference_job.get_s_max() != SINGLE_CORE )
                 {
+
                     Time min_t_wc = Time_model::constants<Time>::infinity();
                     Time min_t_high = Time_model::constants<Time>::infinity();
 
@@ -845,15 +891,30 @@ namespace NP {
                         if ( ready(s, it_j) )
                         {
                             auto a_max = s.core_availability(it_j.get_s_min()).max();
-                            auto r_max = latest_ready_time(s, it_j);
-                            auto lt_wc  = std::max(a_max,r_max);
+                            //latest_ready_time returns Rj_max
+                            auto R_max = latest_ready_time(s, it_j);
+                            auto lt_wc  = std::max(a_max,R_max);
                             min_t_wc = std::min(min_t_wc,lt_wc);
 
-                            if(it_j.higher_priority_than(j))
+                            if(it_j.higher_priority_than(reference_job))
                             {
-                                if(it_j.get_s_min() <= j.get_s_max())
-                                    lt_wc = r_max;
-                                min_t_high = std::min(min_t_high,lt_wc);
+
+                                //disregards predecessors of reference job
+                                auto lfty = ready_times(s, it_j, predecessors_of(reference_job)).max();
+                                // lfty has the LFT*y
+
+                                // t high not using the R_max instead r_max is used
+                                auto r_max = it_j.arrival_window().max();
+
+                                auto th = r_max;
+                                if(it_j.get_s_min() > reference_job.get_s_max())
+                                {
+                                    th = std::max(th,a_max);
+                                }
+
+                                auto maxt = std::max(th,lfty);
+
+                                min_t_high = std::min(min_t_high, maxt);
                             }
                         }
                     }
@@ -878,9 +939,10 @@ namespace NP {
             Time computeEST(
                     const State& s, const Job<Time>& j, unsigned int p) const
             {
-                auto rt = ready_times(s, j);
-                DM("est: " << p << ":" <<  (std::max(rt.min(),  s.core_availability(p).min())) << std::endl);
-                return (std::max(rt.min(),  s.core_availability(p).min()));
+                //ready_times returns Ri min
+                auto R_min = earliest_ready_time(s, j);
+                DM("est: " << p << ":" <<  (std::max(R_min,  s.core_availability(p).min())) << std::endl);
+                return (std::max(R_min,  s.core_availability(p).min()));
             }
 
 #endif
@@ -939,7 +1001,6 @@ namespace NP {
                         bool eligibile = true;
 
                         auto estp = computeEST(s, j, p);
-
 
                         //check Eligibility condition
                         if (estp > lst) eligibile = false;

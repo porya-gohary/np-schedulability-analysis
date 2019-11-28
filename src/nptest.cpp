@@ -126,7 +126,7 @@ static Analysis_result analyze(
                 auto s_max =  num_processors > j.get_s_max()? j.get_s_max() : num_processors;
                 for(unsigned int p = j.get_s_min(); p <= (s_max -1); p++ )
                 {
-                    Interval<Time> finish = space.get_finish_times(j,p);
+                    Interval<Time> finish = space.get_finish_times(j, p);
                     bcct << finish.from() << ":";
                     wcct << finish.until() << ":";
                     bcrt << std::max<long long>(0,(finish.from() - j.earliest_arrival())) << ":";

@@ -72,7 +72,7 @@ namespace NP {
 				return explore(p, o);
 			}
 #ifdef GANG
-            Interval<Time> get_finish_times(const Job<Time>& j, unsigned int p=1) const
+            Interval<Time> get_finish_times(const Job<Time>& j, unsigned int p = 1) const
 #else
 			Interval<Time> get_finish_times(const Job<Time>& j) const
 #endif
