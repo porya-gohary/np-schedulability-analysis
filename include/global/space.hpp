@@ -88,8 +88,8 @@ namespace NP {
 #endif
 			) const
 			{
-				auto rbounds = rta.find(j.get_id());
-				if (rbounds == rta.end()) {
+				auto rbounds = previous_rta.find(j.get_id());
+				if (rbounds == previous_rta.end()) {
 					return Interval<Time>{0, Time_model::constants<Time>::infinity()};
 				} else {
 #ifdef GANG
@@ -283,6 +283,7 @@ namespace NP {
 #endif
 
 			Response_times rta;
+            Response_times previous_rta;
 
 #ifdef CONFIG_PARALLEL
 			tbb::enumerable_thread_specific<Response_times> partial_rta;
@@ -1137,7 +1138,13 @@ namespace NP {
 						break;
 
 #ifdef CONFIG_PARALLEL
-
+/* parallel_for( iteration space, the work you want to do with c++ lambda functions! )
+ *
+ * Lambda [ captures ] ( params ) { body }
+ * captures -> & all!
+ *
+ *
+ */
 					parallel_for(new_states_part.range(),
 						[&] (typename Split_states::const_range_type& r) {
 							for (auto it = r.begin(); it != r.end(); it++) {
@@ -1186,6 +1193,7 @@ namespace NP {
 #endif
 					states_storage.pop_front();
 #endif
+                    previous_rta = rta;
 				}
 
 
