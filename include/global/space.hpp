@@ -1176,8 +1176,10 @@ namespace NP {
 #ifdef CONFIG_PARALLEL
 					// propagate any updates to the response-time estimates
 					for (auto& r : partial_rta)
-						for (const auto& elem : r)
-							update_finish_times(rta, elem.first, elem.second);
+						for (const auto& jobid : r)
+						    for(const auto& elem: jobid.second)
+							    update_finish_times(rta, jobid.first, elem.second, elem.first);
+
 #endif
 
 #ifndef CONFIG_COLLECT_SCHEDULE_GRAPH
