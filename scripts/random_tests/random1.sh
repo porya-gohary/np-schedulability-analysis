@@ -17,10 +17,10 @@ function cleanup() {
 GENERATE="../random-tasks.py"
 CONVERT="../dag-tasks-to-jobs-gang.py"
 
-BASE="../../../BASE-np-schedulability-analysis/cmake-build-release/nptest"
+BASE="../../../BASE-np-schedulability-analysis/cmake-build-debug-serial-jemalloc/nptest"
 BASE_STR="base_"
 
-GANG="../../cmake-build-release/nptest"
+GANG="../../cmake-build-debug-serial-jemalloc/nptest"
 GANG_STR="gang_"
 #---------------------------------------#
 
@@ -34,7 +34,6 @@ MAXIMUM_JOBS_PER_TASK=8 #maximum jobs per task (each task may have from 1 to JOB
 MAXIMUM_TASKS=4 #maximum tasks
 # timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
 # only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
-TIMEOUT=100 #in seconds
 
 #Initialise
 i=0
@@ -72,7 +71,7 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
           OUTPUT_GANG=$SIM_RESULTS_FOLDER"/"$GANG_STR$JOBS".rta"$EXTENSION
 
           echo "Running base with " $CORES " cores"
-          ./timeout3.sh -t $TIMEOUT ./$BASE -m $CORES $JOBS_OUTPUT -r
+          ./$BASE -m $CORES $JOBS_OUTPUT -r
           RTA_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS".rta"$EXTENSION
 
           if [ -f $RTA_OUTPUT ]; then

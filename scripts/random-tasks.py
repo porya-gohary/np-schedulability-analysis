@@ -93,7 +93,7 @@ def prio_table(params):
 def generate_tasks(n_tasks,maxim):
     all_tasks = {}
     for i in range(n_tasks):
-       period=random.randrange(2,maxim)
+       period=random.randrange(10,maxim)
        deadline=random.randrange(period,maxim)
        all_tasks[i] = ('T',i+1,period,deadline)
 
@@ -108,10 +108,10 @@ def generate_jobs(n_tasks, n_jobs, m_pre, all_tasks):
             period=all_tasks[i][2]
             deadline=all_tasks[i][3]
             job_id=j+1
-            r_min=random.randrange(0,int(period/4)+1)
-            r_max=r_min + random.randrange(0,int(period/4)+1)
-            bcet=random.randrange(1,int(deadline/6)+2)
-            wcet=bcet + random.randrange(1,int(deadline/6)+2)
+            r_min=random.randrange(0,int(period/10)+1)
+            r_max=r_min + random.randrange(0,int(period/10)+1)
+            bcet=random.randrange(1,int(deadline/10)+2)
+            wcet=bcet + random.randrange(1,int(deadline/10)+2)
             #generate precedence
 
             str_pre = ""

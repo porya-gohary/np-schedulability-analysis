@@ -36,7 +36,7 @@ cleanup;
 
 #Parameters
 MAXIMUM_PER_SCENARIO=100 #number of tests per scenario
-MAXIMUM_CORES=32 #each test randomly choosen from 1 to m cores
+MAXIMUM_CORES=20 #each test randomly choosen from 1 to m cores
 MAXIMUM_JOBS_PER_TASK=5 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=4 #maximum tasks
 MAXIMUM_PRECEDENCE_PER_JOB=3 #each job may have from 0 to 3 precedence contraints
@@ -63,17 +63,18 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
           PRECEDENCE_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS".prec"$EXTENSION
 
           #choose random cores 2-MAXIMUM_CORES
-          CORES=$(( ( RANDOM % $MAXIMUM_CORES )  + 1 ))
+          CORES_BASE=$(( ( RANDOM % $MAXIMUM_CORES )  + 1 ))
+          CORES=$[CORES_BASE * CORES_BASE];
 
           #generate random DAG tests
           python3 $GENERATE --save $GEN_OUTPUT -t $NUMBER_OF_TASKS -j $JOBS_PER_TASK -p $MAXIMUM_PRECEDENCE_PER_JOB
 
           #convert them DAG tasks to jobs
-          python3 $CONVERT $GEN_OUTPUT $JOBS_OUTPUT $PRECEDENCE_OUTPUT --fixed $CORES
+          python3 $CONVERT $GEN_OUTPUT $JOBS_OUTPUT $PRECEDENCE_OUTPUT --fixed $CORES_BASE
 
           #force only test with precedence contraints
-          #lines=$(wc -l $JOBS_OUTPUT | cut -f1 -d' ')
-          #if [ $lines -gt 10 ]; then
+          #lines=$(wc -l $PRECEDENCE_OUTPUT | cut -f1 -d' ')
+          #if [ $lines -le 2 ]; then
           #    continue;
           #fi
 
@@ -85,8 +86,8 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
           SCHEDULABLE_GANG=0
           RTA_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS".rta"$EXTENSION
           #run simulation base
-          echo "Running base with 1 core"
-          OUT=$(./$BASE -m 1 $JOBS_OUTPUT -r --precedence $PRECEDENCE_OUTPUT 2>> $LOG_FILE)
+          echo "Running base with " $CORES_BASE " core(s)"
+          OUT=$(./$BASE -m $CORES_BASE $JOBS_OUTPUT -r --precedence $PRECEDENCE_OUTPUT 2>> $LOG_FILE)
           echo $OUT
 
           #update schedulable if a file is created (assert)
@@ -106,7 +107,7 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
           fi
 
           #run simulation gang if base is not timeout -> gang needs a little more time (few seconds)
-          echo "Running gang with " $CORES " cores"
+          echo "Running gang with " $CORES " cores, fixed = " $CORES_BASE
           OUT=$(./$GANG -m $CORES $JOBS_OUTPUT -r --precedence $PRECEDENCE_OUTPUT 2>> $LOG_FILE)
           echo $OUT
           if [ -f $RTA_OUTPUT ]; then

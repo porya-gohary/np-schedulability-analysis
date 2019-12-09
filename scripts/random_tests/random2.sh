@@ -17,10 +17,10 @@ function cleanup() {
 GENERATE="../random-tasks.py"
 CONVERT="../dag-tasks-to-jobs.py"
 
-BASE="../../../BASE-np-schedulability-analysis/cmake-build-release/nptest"
+BASE="../../../BASE-np-schedulability-analysis/cmake-build-debug-serial-jemalloc/nptest"
 BASE_STR="base_"
 
-GANG="../../cmake-build-release/nptest"
+GANG="../../cmake-build-debug-serial-jemalloc/nptest"
 GANG_STR="gang_"
 #---------------------------------------#
 
@@ -75,7 +75,7 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
           OUTPUT_GANG=$SIM_RESULTS_FOLDER"/"$GANG_STR$JOBS".rta"$EXTENSION
 
           echo "Running base with " $CORES " cores"
-          ./timeout3.sh -t $TIMEOUT ./$BASE -m $CORES $JOBS_OUTPUT -r --precedence $PRECEDENCE_OUTPUT
+          ./$BASE -m $CORES $JOBS_OUTPUT -r --precedence $PRECEDENCE_OUTPUT
           RTA_OUTPUT=$GENERATE_TASKS_FOLDER"/"$JOBS".rta"$EXTENSION
 
           if [ -f $RTA_OUTPUT ]; then

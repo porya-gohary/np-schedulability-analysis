@@ -13,6 +13,7 @@ import fractions
 
 US_TO_NS = 1000
 MS_TO_US = 1000
+#MS_TO_US = 1
 
 def next_power_of_10(x):
     return 10**(ceil(log10(x)))
