@@ -23,10 +23,10 @@ function cleanup() {
 GENERATE="../random-tasks.py"
 CONVERT="../dag-tasks-to-jobs-gang.py"
 
-BASE="../../cmake-build-debug-serial-jemalloc/nptest"
+BASE="../../../BASE-np-schedulability-analysis/cmake-build-debug-serial-jemalloc/nptest"
 BASE_STR="base_"
 
-GANG="../../cmake-build-debug-serial-jemalloc-optimize/nptest"
+GANG="../../cmake-build-debug-serial-jemalloc/nptest"
 GANG_STR="gang_"
 
 #---------------------------------------#
@@ -40,8 +40,6 @@ MAXIMUM_CORES=20 #each test randomly choosen from 1 to m cores
 MAXIMUM_JOBS_PER_TASK=5 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=4 #maximum tasks
 MAXIMUM_PRECEDENCE_PER_JOB=3 #each job may have from 0 to 3 precedence contraints
-# timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
-# only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
 
 #Initialise
 i=0

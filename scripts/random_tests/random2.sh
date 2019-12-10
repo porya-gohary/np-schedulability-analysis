@@ -33,9 +33,6 @@ MAXIMUM_CORES=32 #each test randomly choosen from 1 to m cores
 MAXIMUM_JOBS_PER_TASK=8 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=3 #maximum tasks
 MAXIMUM_PRECEDENCE_PER_JOB=3 #each job may have from 0 to 3 precedence contraints
-# timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
-# only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
-TIMEOUT=100 #in seconds
 
 #Initialise counters
 i=0

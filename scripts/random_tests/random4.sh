@@ -40,8 +40,6 @@ MAXIMUM_CORES=32 #each test randomly choosen from 1 to m cores
 MAXIMUM_JOBS_PER_TASK=5 #maximum jobs per task (each task may have from 1 to JOBS_PER_TASK vertices)
 MAXIMUM_TASKS=4 #maximum tasks
 MAXIMUM_PRECEDENCE_PER_JOB=3 #each job may have from 0 to 3 precedence contraints
-# timeout used in bash in order to not produce at all results -> just to avoid very very large tasksets for now
-# only used if base code is timeout not in gang code, if base is ran less than the timeout gang must run too
 
 #Initialise
 i=0
@@ -95,9 +93,9 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
               continue ;
             fi
             SCHEDULABLE_BASE=$(echo $OUT | awk -F, '{print $2}' | tr -d '[:space:]')
-            if [ $SCHEDULABLE_BASE = 0 ]; then
-                continue;
-            fi
+            #if [ $SCHEDULABLE_BASE = 0 ]; then
+            #    continue;
+            #fi
             mv $RTA_OUTPUT $OUTPUT_BASE
           else
             #file is not created based on assertions!
@@ -119,7 +117,9 @@ while [ $NUMBER_OF_TASKS -le $MAXIMUM_TASKS ]; do
             if [ "$DIFF" != "" ]
             then
               echo "-------------FILES DIFFERS-----------"
-              echo "$DIFF"
+              echo "-------------FILES DIFFERS-----------"
+              echo "-------------FILES DIFFERS-----------"
+              #echo "$DIFF"
 
               #copy not identical results!!!
               cp $OUTPUT_BASE $WRONG_FOLDER/$OUTPUT_BASE
