@@ -88,8 +88,14 @@ namespace NP {
 #endif
 			) const
 			{
+
+#ifdef RTA_SAME_DEPTH
 				auto rbounds = previous_rta.find(j.get_id());
 				if (rbounds == previous_rta.end()) {
+#else
+                auto rbounds = rta.find(j.get_id());
+                if (rbounds == rta.end()) {
+#endif
 					return Interval<Time>{0, Time_model::constants<Time>::infinity()};
 				} else {
 #ifdef GANG
@@ -283,7 +289,9 @@ namespace NP {
 #endif
 
 			Response_times rta;
+#ifdef RTA_SAME_DEPTH
             Response_times previous_rta;
+#endif
 
 #ifdef CONFIG_PARALLEL
 			tbb::enumerable_thread_specific<Response_times> partial_rta;
@@ -730,9 +738,20 @@ namespace NP {
 			// assumes j is ready
 			Interval<Time> ready_times(
 				const State& s, const Job<Time>& j,
-				const Job_precedence_set& disregard) const
+				const Job_precedence_set& disregard
+#ifdef GANG
+                , const unsigned int p = SINGLE_CORE
+#endif
+				) const
 			{
 				Interval<Time> r = j.arrival_window();
+#ifdef GANG
+                if(j.get_s_min() > p)
+                {
+                    // max {rj_max,Amax(sjmin)}
+                    r.extend_to(s.core_availability(j.get_s_max()).max());
+                }
+#endif
 				for (auto pred : predecessors_of(j)) {
 					// skip if part of disregard
 					if (contains(disregard, pred))
@@ -758,9 +777,18 @@ namespace NP {
 
 			Time latest_ready_time(
 				const State& s, Time earliest_ref_ready,
-				const Job<Time>& j_hp, const Job<Time>& j_ref) const
+				const Job<Time>& j_hp, const Job<Time>& j_ref
+#ifdef GANG
+                , const unsigned int p = SINGLE_CORE
+#endif
+            ) const
 			{
+#ifdef GANG
+                //ready_times = t_high of j_hp
+                auto rt = ready_times(s, j_hp, predecessors_of(j_ref), p);
+#else
 				auto rt = ready_times(s, j_hp, predecessors_of(j_ref));
+#endif
 				return std::max(rt.max(), earliest_ref_ready);
 			}
 
@@ -769,7 +797,11 @@ namespace NP {
 			Time next_higher_prio_job_ready(
 				const State& s,
 				const Job<Time> &reference_job,
-				const Time t_earliest) const
+				const Time t_earliest
+#ifdef GANG
+                , const unsigned int p = SINGLE_CORE
+#endif
+				) const
 			{
 				auto ready_min = earliest_ready_time(s, reference_job);
 				Time when = Time_model::constants<Time>::infinity();
@@ -779,7 +811,11 @@ namespace NP {
 					if (ready(s, j)
 					    && j.higher_priority_than(reference_job)) {
 						when = std::min(when,
+#ifdef GANG
+							latest_ready_time(s, ready_min, j, reference_job, p));
+#else
 							latest_ready_time(s, ready_min, j, reference_job));
+#endif
 					}
 
 				// No point looking in the future when we've already
@@ -802,7 +838,12 @@ namespace NP {
 					    && j.higher_priority_than(reference_job)) {
 						// does it beat what we've already seen?
 						when = std::min(when,
-							latest_ready_time(s, ready_min, j, reference_job));
+#ifdef GANG
+                            latest_ready_time(s, ready_min, j, reference_job, p));
+#else
+                            latest_ready_time(s, ready_min, j, reference_job));
+#endif
+
 					}
 				}
 
@@ -818,8 +859,12 @@ namespace NP {
 				// check everything that overlaps with t_earliest
 				for (const Job<Time>& j : jobs_by_win.lookup(t_earliest))
 					if (ready(s, j))
-						when = std::min(when, latest_ready_time(s, j));
-
+						when = std::min(when,
+#ifdef GANG
+                            std::max(latest_ready_time(s, j),s.core_availability(j.get_s_min()).max()));
+#else
+                            latest_ready_time(s, j));
+#endif
 				// No point looking in the future when we've already
 				// found one in the present.
 				if (when <= t_earliest)
@@ -838,7 +883,12 @@ namespace NP {
 					// j is not relevant if it is already scheduled or blocked
 					if (ready(s, j))
 						// does it beat what we've already seen?
-						when = std::min(when, latest_ready_time(s, j));
+						when = std::min(when,
+#ifdef GANG
+                                  std::max(latest_ready_time(s, j),s.core_availability(j.get_s_min()).max()));
+#else
+                                  latest_ready_time(s, j));
+#endif
 				}
 
 				return when;
@@ -870,65 +920,28 @@ namespace NP {
 #ifdef GANG
             // assumes j is ready
             Time computeLST(
-                    const State& s, const Job<Time>& reference_job, Time t_wc) const
+                    const State& s, const Job<Time>& reference_job, Time t_wc, const unsigned int p) const
             {
+                //return core_availability of p cores
+                auto at = s.core_availability(p);
 
-                //return core_availability of 1 core
-                auto at = s.core_availability();
-                //t_high as base code
-                auto t_high = next_higher_prio_job_ready(s, reference_job, at.min());
+                //t_high
+                auto t_high = next_higher_prio_job_ready(s, reference_job, at.min(), p);
 
-                // calculate new t_wc and t_high NAIVE!!!!!
-                // TODO make it efficient with a WINDOW!!!
-                if( reference_job.get_s_max() != SINGLE_CORE )
-                {
+                //time available
+                Time t_avail =  Time_model::constants<Time>::infinity();
 
-                    Time min_t_wc = Time_model::constants<Time>::infinity();
-                    Time min_t_high = Time_model::constants<Time>::infinity();
+                if(p < reference_job.get_s_max())
+                    t_avail = s.core_availability(p+1).max() - Time_model::constants<Time>::epsilon();
 
-                    //check everything
-                    for (const Job<Time>& it_j : jobs)
-                    {
-                        if ( ready(s, it_j) )
-                        {
-                            auto a_max = s.core_availability(it_j.get_s_min()).max();
-                            //latest_ready_time returns Rj_max
-                            auto R_max = latest_ready_time(s, it_j);
-                            auto lt_wc  = std::max(a_max,R_max);
-                            min_t_wc = std::min(min_t_wc,lt_wc);
-
-                            if(it_j.higher_priority_than(reference_job))
-                            {
-
-                                //disregards predecessors of reference job
-                                auto lfty = ready_times(s, it_j, predecessors_of(reference_job)).max();
-                                // lfty has the LFT*y
-
-                                // t high not using the R_max instead r_max is used
-                                auto r_max = it_j.arrival_window().max();
-
-                                auto th = r_max;
-                                if(it_j.get_s_min() > reference_job.get_s_max())
-                                {
-                                    th = std::max(th,a_max);
-                                }
-
-                                auto maxt = std::max(th,lfty);
-
-                                min_t_high = std::min(min_t_high, maxt);
-                            }
-                        }
-                    }
-                    // calculate new
-                    t_wc = min_t_wc;
-                    t_high = min_t_high;
-
-                }
-
-                Time lst    = std::min(t_wc,
+                //compute LST
+                Time lst    = std::min(std::min(t_wc, t_avail),
                                        t_high - Time_model::constants<Time>::epsilon());
+
                 DM("t_high: " << t_high << std::endl
-                          << "t_wc: " << t_wc << std::endl);
+                          << "t_wc: " << t_wc << std::endl
+                          << "t_avail: " << t_avail << std::endl);
+
                 DM("lst: " << lst << std::endl);
 
                 return lst;
@@ -983,50 +996,36 @@ namespace NP {
 
 				return true;
 #else
-                //if m > j.s_max then s_max = j.s_max s else s_max = m
-                auto s_max =  s.num_processors() > j.get_s_max()? j.get_s_max() : s.num_processors();
-
-                //return true if at least one job on p cores is dispatched
+                //return true if at least one job can be dispatched on p cores
                 bool found_one = false;
 
-                auto lst = computeLST(s, j, t_wc);
-
-                //TODO cant reverse due to or p=s_max in eligibility condition
-                //Also is not working as expected to be because of the second condition ESTp < A_max(p+1),
-                //So I cant break
-                for(unsigned int p = s_max; p >= j.get_s_min(); p-- )
+                //TODO check reversing
+                for(unsigned int p = j.get_s_max(); p >= j.get_s_min(); p--)
                 {
-				    //TODO p == j.get_s_max() or p == s_max, where s_max = m if j.get_s_max() > m
-				    //if( (s.core_availability_flag(p) == false) || (p == j.get_s_max()) )
-                    //{
                         bool eligibile = true;
 
                         auto estp = computeEST(s, j, p);
 
-                        //check Eligibility condition
-                        if (estp > lst) eligibile = false;
-                        //TODO or s_max?
-                        if ((p != j.get_s_max()) && (estp >= s.core_availability((p + 1)).max())) eligibile = false;
+                        auto lstp = computeLST(s, j, t_wc, p);
 
-                        if(!eligibile)
+                        //check Eligibility condition for p
+                        if (estp > lstp)
                             continue;
 
                         // yep, job j is a feasible successor in state s
                         // p = number of processors assigned
                         found_one |= eligibile;
 
-                        // compute range of possible finish times
-                        auto lft = ((p == j.get_s_max()) || (lst < s.core_availability(p + 1).max())) ?
-                                   lst + j.get_cost(p).max() : s.core_availability(p + 1).max() +
-                                                               j.get_cost(p).max() - 1;
+                        //start times on p cores
+                        Interval<Time> stimes{estp,lstp};
 
-                        auto eftp = estp + j.get_cost(p).min();
+                        // compute range of possible finish times on p cores
+                        auto ftimes = stimes + j.get_cost(p);
 
-                        Interval<Time> ftimes{eftp,lft};
-                        Interval<Time> stimes{estp,lst};
-
+                        //update finish times to rta
                         update_finish_times(j, ftimes, p);
 
+                        //generate the new state
                         const State &next = be_naive ?
                                             new_state(s, index_of(j), predecessors_of(j),
                                                       stimes, ftimes, j.get_key(), p) :
@@ -1040,7 +1039,6 @@ namespace NP {
                         edges.emplace_back(&j, &s, &next , stimes, ftimes, p);
 #endif
                         count_edge();
-                    //}
                 }
 
 				return found_one;
@@ -1054,7 +1052,7 @@ namespace NP {
 				DM("----" << std::endl);
 
 				// (0) define the window of interest
-
+#ifndef GANG
 				// earliest time a core is possibly available
 				auto t_min  = s.core_availability().min();
 				// latest time some unfinished job is certainly ready
@@ -1064,7 +1062,13 @@ namespace NP {
 				// latest time by which a work-conserving scheduler
 				// certainly schedules some job
 				auto t_wc   = std::max(t_core, t_job);
+#else
+                // earliest time a core is possibly available use for window
+                auto t_min  = s.core_availability().min();
 
+				auto t_wc = next_job_ready(s, t_min);
+
+#endif
 				DM(s << std::endl);
 				DM("t_min: " << t_min << std::endl
 				<< "t_job: " << t_job << std::endl
@@ -1077,8 +1081,6 @@ namespace NP {
 					if (j.earliest_arrival() <= t_min && ready(s, j))
 						found_one |= dispatch(s, j, t_wc);
 
-				DM("==== [2] ====" << std::endl);
-				// (2) check jobs that are released only later in the interval
 				for (auto it = jobs_by_earliest_arrival.upper_bound(t_min);
 					 it != jobs_by_earliest_arrival.end();
 					 it++) {
@@ -1193,9 +1195,13 @@ namespace NP {
 								it->clear();
 						});
 #endif
+					// TODO: are we sure that free's also the inner state??
+					// Thread code free them explicitily, serial code maybe do it too
 					states_storage.pop_front();
 #endif
+#ifdef RTA_SAME_DEPTH
                     previous_rta = rta;
+#endif
 				}
 
 
@@ -1209,6 +1215,7 @@ namespace NP {
 								it->clear();
 						});
 #endif
+					//TODO same as in inner while loop
 					states_storage.pop_front();
 				}
 #endif
