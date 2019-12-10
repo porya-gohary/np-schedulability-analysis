@@ -7,6 +7,21 @@
 
 // #define CONFIG_COLLECT_SCHEDULE_GRAPH
 
+// use rta only at depth level
+// #define RTA_SAME_DEPTH
+
+// base code fix new state
+// #define FIX_NEW_STATE
+
+// gang code fix new state
+#define FIX_NEW_STATE_GANG
+
+//remove this to go back to the previous code!
+#define GANG
+
+//remove this to not output inf in rta file
+//#define NEW_OUTPUT
+
 #ifndef CONFIG_COLLECT_SCHEDULE_GRAPH
 #define CONFIG_PARALLEL
 #endif

@@ -85,8 +85,30 @@ static Analysis_result analyze(
     for( auto it = problem.jobs.begin(); it!= problem.jobs.end();it++)
     {
         assert((*it).get_s_min() <= num_processors);
+        assert((*it).get_s_max() <= num_processors);
         DM(*it << '\n');
     }
+
+    // lamda function for infinity
+    auto returnInf = [](Time t)
+    {
+        //uncomment at last to have inf as string
+#ifdef NEW_OUTPUT
+        return ((t == Time_model::constants<Time>::infinity()) || (t == -Time_model::constants<Time>::infinity())) ? "inf" : std::to_string(t);
+#else
+        return t;
+#endif
+    };
+
+    auto checkInf = [](Time t)
+    {
+#ifdef NEW_OUTPUT
+        //uncomment at last for check inf
+        return ((t == Time_model::constants<Time>::infinity()) || (t == -Time_model::constants<Time>::infinity()));
+#else
+        return false;
+#endif
+    };
 #endif
 
 	// Set common analysis options
@@ -127,16 +149,31 @@ static Analysis_result analyze(
                 for(unsigned int p = j.get_s_min(); p <= (s_max -1); p++ )
                 {
                     Interval<Time> finish = space.get_finish_times(j, p);
-                    bcct << finish.from() << ":";
-                    wcct << finish.until() << ":";
-                    bcrt << std::max<long long>(0,(finish.from() - j.earliest_arrival())) << ":";
-                    wcrt << (finish.until() - j.earliest_arrival()) << ":";
+                    bcct << returnInf(finish.from()) << ":";
+                    wcct << returnInf(finish.until()) << ":";
+                    if(checkInf(finish.until()))
+                    {
+                        bcrt << 0 << ":";
+                        wcrt << "inf" << ":";
+                    }
+                    else {
+                        bcrt << std::max<long long>(0,(finish.from() - j.earliest_arrival())) << ":";
+                        wcrt << (finish.until() - j.earliest_arrival()) << ":";
+                    }
+
                 }
                 Interval<Time> finish = space.get_finish_times(j,s_max);
-                bcct << finish.from();
-                wcct << finish.until();
-                bcrt << std::max<long long>(0,(finish.from() - j.earliest_arrival()));
-                wcrt << (finish.until() - j.earliest_arrival());
+                bcct << returnInf(finish.from());
+                wcct << returnInf(finish.until());
+                if(checkInf(finish.until()))
+                {
+                    bcrt << 0 << ":";
+                    wcrt << "inf" << ":";
+                }
+                else {
+                    bcrt << std::max<long long>(0, (finish.from() - j.earliest_arrival()));
+                    wcrt << (finish.until() - j.earliest_arrival());
+                }
 
             rta << bcct.str() << ", "
                 << wcct.str() << ", "

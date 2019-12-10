@@ -9,8 +9,7 @@
 
 #include "time.hpp"
 
-//remove this to go back to the previous code!
-#define GANG
+#include "config.h"
 
 #ifdef GANG
 #define SINGLE_CORE 1
