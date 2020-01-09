@@ -64,7 +64,7 @@ namespace NP {
 				<< "lft: " << lft << std::endl);
 
 #ifdef GANG
-				//initialise CA with p times lft elements
+				//initialise CA with p times lft elements (1st Union)
 				//initialise PA with p times eft elements
                 std::vector<Time> ca(p,lft), pa(p,eft);
 
@@ -85,7 +85,7 @@ namespace NP {
                 bool added_j = false;
                 for (const auto& rj : from.certain_jobs) {
                     auto x = rj.first;
-                    //rj->second.first = Interval<Time> EFT,LFT
+                    //rj->second.first terval<Time> EFT,LFT
                     auto x_eft = rj.second.first.min();
                     auto x_lft = rj.second.first.max();
 
@@ -120,17 +120,18 @@ namespace NP {
 #ifdef FIX_NEW_STATE_GANG
 
                 DM("sum_p : " << sum_px << std::endl);
-
+                //find m predecesors
                 auto m_pred = std::max(p, sum_px);
                 DM("m_pred : " << m_pred << std::endl);
-
+                //2nd Union
+                for (unsigned int i = p; i < m_pred; i++) {
+                    ca.push_back(std::min(lst, std::max(est, from.core_avail[i].max())));
+                }
+                //3rd Union
                 for (unsigned int i = m_pred; i < from.core_avail.size(); i++) {
                     ca.push_back(std::max(est, from.core_avail[i].max()));
                 }
 
-                for (unsigned int i = p; i < m_pred; i++) {
-                    ca.push_back(std::min(lst, std::max(est, from.core_avail[i].max())));
-                }
 #endif
 
 #else

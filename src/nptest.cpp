@@ -104,7 +104,7 @@ static Analysis_result analyze(
     {
 #ifdef NEW_OUTPUT
         //uncomment at last for check inf
-        return ((t == Time_model::constants<Time>::infinity()) || (t == -Time_model::constants<Time>::infinity()));
+        return ((t == Time_model::constants<Time>::infinity()) || (std::abs(t) == Time_model::constants<Time>::infinity()));
 #else
         return false;
 #endif

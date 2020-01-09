@@ -1081,6 +1081,8 @@ namespace NP {
 					if (j.earliest_arrival() <= t_min && ready(s, j))
 						found_one |= dispatch(s, j, t_wc);
 
+				DM("==== [2] ====" << std::endl);
+				// (2) check jobs that are released only later in the interval
 				for (auto it = jobs_by_earliest_arrival.upper_bound(t_min);
 					 it != jobs_by_earliest_arrival.end();
 					 it++) {
