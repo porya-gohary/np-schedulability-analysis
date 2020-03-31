@@ -749,7 +749,7 @@ namespace NP {
                 if(j.get_s_min() > p)
                 {
                     // max {rj_max,Amax(sjmin)}
-                    r.extend_to(s.core_availability(j.get_s_max()).max());
+                    r.extend_to(s.core_availability(j.get_s_min()).max());
                 }
 #endif
 				for (auto pred : predecessors_of(j)) {
