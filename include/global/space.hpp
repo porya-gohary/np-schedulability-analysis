@@ -509,7 +509,8 @@ namespace NP {
 							aborted = true;
 
 							// create a dummy state for explanation purposes
-							auto frange = new_s.core_availability(p) + j.get_cost(p);
+							auto frange = new_s.core_availability(j.get_s_min()) +
+										  j.get_cost(j.get_s_min());
 							const State& next =
 								new_state(new_s, index_of(j), predecessors_of(j),
 								          frange, frange, j.get_key());
