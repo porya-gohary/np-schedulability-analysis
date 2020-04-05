@@ -91,7 +91,10 @@ namespace NP {
 
                     if (contains(predecessors, x)) {
 #ifdef FIX_NEW_STATE_GANG
-                        sum_px += rj.second.second;
+                        // certain jobs is an imprecise set
+                        if (lst < x_lft) {
+                            sum_px += rj.second.second;
+                        }
 #else
                         //old analysis
                         if (lst < x_lft) {
@@ -162,7 +165,9 @@ namespace NP {
 					auto x_lft = rj.second.max();
 					if (contains(predecessors, x)) {
 #ifdef FIX_NEW_STATE
-                        sum_px++; //only one core!
+					    if (lst < x_lft) {
+                            sum_px++; //only one core!
+					    }
 #else
 						if (lst < x_lft) {
 							auto pos = std::find(ca.begin(), ca.end(), x_lft);
