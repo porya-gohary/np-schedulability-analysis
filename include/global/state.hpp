@@ -92,9 +92,7 @@ namespace NP {
                     if (contains(predecessors, x)) {
 #ifdef FIX_NEW_STATE_GANG
                         // certain jobs is an imprecise set
-                        if (lst < x_lft) {
-                            sum_px += rj.second.second;
-                        }
+						sum_px += rj.second.second;
 #else
                         //old analysis
                         if (lst < x_lft) {
@@ -106,7 +104,7 @@ namespace NP {
                             }
                         }
 #endif
-                    } else if (lst <= x_eft) {
+                    } else if (lst < x_eft) {
                         if (!added_j && rj.first > j) {
                             // right place to add j
                             certain_jobs.emplace(j, std::make_pair(finish_times, p));
@@ -165,9 +163,7 @@ namespace NP {
 					auto x_lft = rj.second.max();
 					if (contains(predecessors, x)) {
 #ifdef FIX_NEW_STATE
-					    if (lst < x_lft) {
-                            sum_px++; //only one core!
-					    }
+						sum_px++; //only one core!
 #else
 						if (lst < x_lft) {
 							auto pos = std::find(ca.begin(), ca.end(), x_lft);
@@ -175,7 +171,7 @@ namespace NP {
 								*pos = lst;
 						}
 #endif
-					} else if (lst <= x_eft) {
+					} else if (lst < x_eft) {
 						if (!added_j && rj.first > j) {
 							// right place to add j
 							certain_jobs.emplace_back(j, finish_times);
