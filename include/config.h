@@ -13,9 +13,6 @@
 // base code fix new state
 // #define FIX_NEW_STATE
 
-// gang code fix new state
-#define FIX_NEW_STATE_GANG
-
 // remove this to go back to the previous code!
 #define GANG
 

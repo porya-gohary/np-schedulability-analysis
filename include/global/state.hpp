@@ -74,15 +74,13 @@ namespace NP {
                 bool added_j = false;
                 for (const auto& rj : from.certain_jobs) {
                     auto x = rj.first;
-                    //rj->second.first terval<Time> EFT,LFT
+                    //rj->second.first Interval<Time> EFT,LFT
                     auto x_eft = rj.second.first.min();
                     auto x_lft = rj.second.first.max();
 
                     if (contains(predecessors, x)) {
-                        if (lst < x_lft) {
-                            sum_px += rj.second.second;
-                        }
-                    } else if (lst <= x_eft) {
+						sum_px += rj.second.second;
+                    } else if (lst < x_eft) {
                         if (!added_j && rj.first > j) {
                             // right place to add j
                             certain_jobs.emplace(j, std::make_pair(finish_times, p));
@@ -110,7 +108,7 @@ namespace NP {
 
 				// As the availabilities and eft are two sorted vectors we can create the new
 				// sorted availability just by using the merge part of merge sort
-
+				// Compute PA
 				int eftCount = 0; // Count of times we assigned the eft value
 				auto paIt = pa.begin();
 				for (auto it = from.core_avail.cbegin() + p; it != from.core_avail.cend(); ++it) {
@@ -123,8 +121,8 @@ namespace NP {
 					*paIt = tempValue; ++paIt;
 				}
 
-
-				int lftCount = 0;
+				// Apply the same method to compute CA
+				int lftCount = 0; // Count of times we assigned the lft value
 				unsigned int mCount = p;
 				auto caIt = ca.begin();
 				for (auto it = from.core_avail.cbegin() + p; it != from.core_avail.cend(); ++it) {
@@ -132,6 +130,7 @@ namespace NP {
 					if (mCount < m_pred) {
 						// 2nd union
 						tempValue = std::min(lst, std::max(est, it->max()));
+						mCount++;
 					} else {
 						// 3rd union
 						tempValue = std::max(est, it->max());
@@ -144,6 +143,7 @@ namespace NP {
 					*caIt = tempValue; ++caIt;
 				}
 
+				// Finally, store the new values in the availability vector
 				for (int i = 0; i < from.core_avail.size(); i++) {
 					DM(i << " -> " << pa[i] << ":" << ca[i] << std::endl);
 					core_avail.emplace_back(pa[i], ca[i]);

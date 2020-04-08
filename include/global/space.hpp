@@ -1072,8 +1072,8 @@ namespace NP {
 #endif
 				DM(s << std::endl);
 				DM("t_min: " << t_min << std::endl
-				<< "t_job: " << t_job << std::endl
-				<< "t_core: " << t_core << std::endl
+//				<< "t_job: " << t_job << std::endl
+//				<< "t_core: " << t_core << std::endl
 				<< "t_wc: " << t_wc << std::endl);
 
 				DM("==== [1] ====" << std::endl);
