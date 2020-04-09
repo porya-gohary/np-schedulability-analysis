@@ -1092,6 +1092,8 @@ namespace NP {
 					// stop looking once we've left the window of interest
 					if (j.earliest_arrival() > t_wc)
 						break;
+
+					if (!ready(s, j)) continue;
 					// Since this job is released in the future, it better
 					// be incomplete...
 					assert(unfinished(s, j));
