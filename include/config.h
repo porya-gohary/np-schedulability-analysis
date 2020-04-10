@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 // DM : debug message -- disable for now
-// #define DM(x) std::cerr << x
+//#define DM(x) std::cerr << x
 #define DM(x)
 
 // #define CONFIG_COLLECT_SCHEDULE_GRAPH
@@ -12,9 +12,6 @@
 
 // base code fix new state
 // #define FIX_NEW_STATE
-
-// gang code fix new state
-#define FIX_NEW_STATE_GANG
 
 // remove this to go back to the previous code!
 #define GANG

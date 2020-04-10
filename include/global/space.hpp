@@ -1072,8 +1072,8 @@ namespace NP {
 #endif
 				DM(s << std::endl);
 				DM("t_min: " << t_min << std::endl
-				<< "t_job: " << t_job << std::endl
-				<< "t_core: " << t_core << std::endl
+//				<< "t_job: " << t_job << std::endl
+//				<< "t_core: " << t_core << std::endl
 				<< "t_wc: " << t_wc << std::endl);
 
 				DM("==== [1] ====" << std::endl);
@@ -1092,6 +1092,8 @@ namespace NP {
 					// stop looking once we've left the window of interest
 					if (j.earliest_arrival() > t_wc)
 						break;
+
+					if (!ready(s, j)) continue;
 					// Since this job is released in the future, it better
 					// be incomplete...
 					assert(unfinished(s, j));

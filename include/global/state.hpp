@@ -50,6 +50,9 @@ namespace NP {
 			, scheduled_jobs{from.scheduled_jobs, j}
 			, lookup_key{from.lookup_key ^ key}
 			{
+#ifndef GANG
+				unsigned int p = SINGLE_CORE
+#endif
 			    //gang -> est for p cores
 				auto est = start_times.min();
 				auto lst = start_times.max();
@@ -63,47 +66,20 @@ namespace NP {
 				<< "eft: " << eft << std::endl
 				<< "lft: " << lft << std::endl);
 
-#ifdef GANG
-				//initialise CA with p times lft elements (1st Union)
-				//initialise PA with p times eft elements
-                std::vector<Time> ca(p,lft), pa(p,eft);
 
-                // skip p elements in from.core_avail
-                for (unsigned int i = p; i < from.core_avail.size(); i++) {
-					pa.push_back(std::max(est, from.core_avail[i].min()));
-#ifndef FIX_NEW_STATE_GANG
-					ca.push_back(std::max(est, from.core_avail[i].max()));
-#endif
-				}
-
-#ifdef FIX_NEW_STATE_GANG
                 unsigned int sum_px = 0;
-#endif
                 // update scheduled jobs
                 // map is already sorted to make it easier to merge
                 //TODO optimize structure
                 bool added_j = false;
                 for (const auto& rj : from.certain_jobs) {
                     auto x = rj.first;
-                    //rj->second.first terval<Time> EFT,LFT
+                    //rj->second.first Interval<Time> EFT,LFT
                     auto x_eft = rj.second.first.min();
                     auto x_lft = rj.second.first.max();
 
                     if (contains(predecessors, x)) {
-#ifdef FIX_NEW_STATE_GANG
-                        // certain jobs is an imprecise set
 						sum_px += rj.second.second;
-#else
-                        //old analysis
-                        if (lst < x_lft) {
-                            //rj->second.second = minimum p
-                            for(auto l=1; l <= rj.second.second;l++) {
-                                auto pos = std::find(ca.begin(), ca.end(), x_lft);
-                                if (pos != ca.end())
-                                    *pos = lst;
-                            }
-                        }
-#endif
                     } else if (lst < x_eft) {
                         if (!added_j && rj.first > j) {
                             // right place to add j
@@ -118,90 +94,56 @@ namespace NP {
                     //TODO: emplace -> insert element only if key is never added before added can safely removed
                     certain_jobs.emplace(j, std::make_pair(finish_times, p));
 
-#ifdef FIX_NEW_STATE_GANG
-
                 DM("sum_p : " << sum_px << std::endl);
                 //find m predecesors
                 auto m_pred = std::max(p, sum_px);
                 DM("m_pred : " << m_pred << std::endl);
-                //2nd Union
-                for (unsigned int i = p; i < m_pred; i++) {
-                    ca.push_back(std::min(lst, std::max(est, from.core_avail[i].max())));
-                }
-                //3rd Union
-                for (unsigned int i = m_pred; i < from.core_avail.size(); i++) {
-                    ca.push_back(std::max(est, from.core_avail[i].max()));
-                }
 
-#endif
+                // Create the vectors with the total size directly to avoid unnecessary
+                // extra memory allocations
+				// Initialise CA with p times lft elements (1st Union)
+				// Initialise PA with p times eft elements
+				std::vector<Time> ca(from.core_avail.size(), lft);
+                std::vector<Time> pa(from.core_avail.size(), eft);
 
-#else
-                std::vector<Time> ca, pa;
+				// As the availabilities and eft are two sorted vectors we can create the new
+				// sorted availability just by using the merge part of merge sort
+				// Compute PA
+				int eftCount = 0; // Count of times we assigned the eft value
+				auto paIt = pa.begin();
+				for (auto it = from.core_avail.cbegin() + p; it != from.core_avail.cend(); ++it) {
+					Time tempValue = std::max(est, it->min());
 
-				pa.push_back(eft);
-				ca.push_back(lft);
-
-				// skip first element in from.core_avail
-				for (int i = 1; i < from.core_avail.size(); i++) {
-					pa.push_back(std::max(est, from.core_avail[i].min()));
-#ifndef FIX_NEW_STATE
-					ca.push_back(std::max(est, from.core_avail[i].max()));
-#endif
-				}
-
-#ifdef FIX_NEW_STATE
-                //sum of p predececors
-                unsigned int sum_px = 0;
-#endif
-
-				// update scheduled jobs
-				// keep it sorted to make it easier to merge
-				bool added_j = false;
-				for (const auto& rj : from.certain_jobs) {
-					auto x = rj.first;
-					auto x_eft = rj.second.min();
-					auto x_lft = rj.second.max();
-					if (contains(predecessors, x)) {
-#ifdef FIX_NEW_STATE
-						sum_px++; //only one core!
-#else
-						if (lst < x_lft) {
-							auto pos = std::find(ca.begin(), ca.end(), x_lft);
-							if (pos != ca.end())
-								*pos = lst;
-						}
-#endif
-					} else if (lst < x_eft) {
-						if (!added_j && rj.first > j) {
-							// right place to add j
-							certain_jobs.emplace_back(j, finish_times);
-							added_j = true;
-						}
-						certain_jobs.emplace_back(rj);
+					while (eft <= tempValue && eftCount < p) {
+						++paIt; ++eftCount;
 					}
+
+					*paIt = tempValue; ++paIt;
 				}
-				// if we didn't add it yet, add it at the back
-				if (!added_j)
-					certain_jobs.emplace_back(j, finish_times);
 
-#ifdef FIX_NEW_STATE
-				unsigned int m_pred = std::max(1u,sum_px);
-                //2nd union
-                for (auto i = 1; i < m_pred; i++) {
-                    ca.push_back(std::min(lst, std::max(est, from.core_avail[i].max())));
-                }
-                //3rd union
-                for (auto i = m_pred; i < from.core_avail.size(); i++) {
-                    ca.push_back(std::max(est, from.core_avail[i].max()));
-                }
-#endif
+				// Apply the same method to compute CA
+				int lftCount = 0; // Count of times we assigned the lft value
+				unsigned int mCount = p;
+				auto caIt = ca.begin();
+				for (auto it = from.core_avail.cbegin() + p; it != from.core_avail.cend(); ++it) {
+					Time tempValue;
+					if (mCount < m_pred) {
+						// 2nd union
+						tempValue = std::min(lst, std::max(est, it->max()));
+						mCount++;
+					} else {
+						// 3rd union
+						tempValue = std::max(est, it->max());
+					}
 
-#endif
+					while (lft <= tempValue && lftCount < p) {
+						++caIt; ++lftCount;
+					}
 
-				// sort in non-decreasing order
-				std::sort(pa.begin(), pa.end());
-				std::sort(ca.begin(), ca.end());
+					*caIt = tempValue; ++caIt;
+				}
 
+				// Finally, store the new values in the availability vector
 				for (int i = 0; i < from.core_avail.size(); i++) {
 					DM(i << " -> " << pa[i] << ":" << ca[i] << std::endl);
 					core_avail.emplace_back(pa[i], ca[i]);
