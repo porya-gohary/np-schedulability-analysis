@@ -44,7 +44,7 @@ namespace NP {
         unsigned long s_max;
 
         Scores(unsigned long min, unsigned long max)
-                : s_min(min), s_max(max)
+		: s_min(min), s_max(max)
         {
         }
 
@@ -81,33 +81,37 @@ namespace NP {
 		void compute_hash() {
 			auto h = std::hash<Time>{};
 			key = h(arrival.from());
-			key = (key << 4) ^ h(id.task);
-			key = (key << 4) ^ h(arrival.until());
+			key = (key << 4u) ^ h(id.task);
+			key = (key << 4u) ^ h(arrival.until());
 
 			//accumulate min costs only for hash
-			key = (key << 4) ^ h(get_add_cost_min());
-			key = (key << 4) ^ h(deadline);
+			key = (key << 4u) ^ h(get_add_cost_min());
+			key = (key << 4u) ^ h(deadline);
 
             //accumulate max costs only for hash
-			key = (key << 4) ^ h(get_add_cost_max());
-			key = (key << 4) ^ h(id.job);
-			key = (key << 4) ^ h(priority);
+			key = (key << 4u) ^ h(get_add_cost_max());
+			key = (key << 4u) ^ h(id.job);
+			key = (key << 4u) ^ h(priority);
 
 			//adding s_min and s_max to hash of a job
-            key = (key << 4) ^ h(scores.s_min);
-            key = (key << 4) ^ h(scores.s_max);
+            key = (key << 4u) ^ h(scores.s_min);
+            key = (key << 4u) ^ h(scores.s_max);
 		}
 
 	public:
 
         Job(unsigned long id,
-            Interval<Time> arr, std::vector<Interval<Time>> &acosts,
-            Time dl, Priority prio,
+            Interval<Time> arr, std::vector<Interval<Time>> &costs,
+            Time dl, Priority priority,
             unsigned long s_min, unsigned long s_max,
             unsigned long tid = 0)
-                : arrival(arr),
-                  costs(acosts),
-                  deadline(dl), priority(prio), id(id, tid),scores(s_min, s_max)
+		: arrival(arr)
+		, costs(costs)
+		, deadline(dl)
+		, priority(priority)
+		, id(id, tid)
+		, scores(s_min, s_max)
+		, key(0)
         {
             compute_hash();
         }
@@ -116,9 +120,12 @@ namespace NP {
 			Interval<Time> arr, Interval<Time> cost,
 			Time dl, Priority prio,
 			unsigned long tid = 0)
-		    : arrival(arr),
-		    deadline(dl), priority(prio), id(id, tid)
-		    ,scores(SINGLE_CORE, SINGLE_CORE)
+		: arrival(arr)
+		, deadline(dl)
+		, priority(prio)
+		, id(id, tid)
+		, scores(SINGLE_CORE, SINGLE_CORE)
+		, key(0)
 		{
             costs.emplace_back(cost);
 			compute_hash();
@@ -305,13 +312,13 @@ namespace NP {
 	{
 		public:
 
-		InvalidJobReference(const JobID& bad_id)
+		explicit InvalidJobReference(const JobID& bad_id)
 		: ref(bad_id)
 		{}
 
 		const JobID ref;
 
-		virtual const char* what() const noexcept override
+		const char* what() const noexcept override
 		{
 			return "invalid job reference";
 		}
@@ -345,7 +352,7 @@ namespace std {
 		std::size_t operator()(NP::JobID const& id) const
 		{
 			hash<unsigned long> h;
-			return (h(id.job) << 4) ^ h(id.task);
+			return (h(id.job) << 4u) ^ h(id.task);
 		}
 
 	};

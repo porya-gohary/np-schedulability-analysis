@@ -24,7 +24,7 @@ namespace NP {
 			public:
 
 			// initial state -- nothing yet has finished, nothing is running
-			Schedule_state(unsigned int num_processors)
+			explicit Schedule_state(unsigned int num_processors)
 			: scheduled_jobs()
 			, num_jobs_scheduled(0)
 			, core_avail{num_processors, Interval<Time>(Time(0), Time(0))}
@@ -210,13 +210,13 @@ namespace NP {
 				return true;
 			}
 
-			const unsigned int number_of_scheduled_jobs() const
+			unsigned int number_of_scheduled_jobs() const
 			{
 				return num_jobs_scheduled;
 			}
 
             //return number of available processors depending on core_avail size
-            const unsigned int num_processors() const
+            unsigned int num_processors() const
             {
                 assert(core_avail.size() > 0);
                 return core_avail.size();
@@ -249,12 +249,12 @@ namespace NP {
                 }
             }
 
-			const bool job_incomplete(Job_index j) const
+			bool job_incomplete(Job_index j) const
 			{
 				return !scheduled_jobs.contains(j);
 			}
 
-			const bool job_ready(const Job_precedence_set& predecessors) const
+			bool job_ready(const Job_precedence_set& predecessors) const
 			{
 				for (auto j : predecessors)
 					if (!scheduled_jobs.contains(j))

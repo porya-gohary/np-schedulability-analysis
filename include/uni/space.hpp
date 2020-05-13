@@ -391,7 +391,7 @@ namespace NP {
 	     __it++) \
 		if (incomplete(__s, *__j))
 
-// Iterare over all incomplete jobs that are certainly released no later than
+// Iterate over all incomplete jobs that are certainly released no later than
 // __until
 #define foreach_certainly_pending_job_until(__s, __j, __until) \
 	foreach_possbly_pending_job_until(__s, __j, (__until)) \
@@ -572,7 +572,7 @@ namespace NP {
 
 			bool not_done()
 			{
-				// if the curent queue is empty, move on to the next
+				// if the current queue is empty, move on to the next
 				if (todo[todo_idx].empty()) {
 					current_job_count++;
 					todo_idx = current_job_count % num_todo_queues;

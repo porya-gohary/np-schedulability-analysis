@@ -171,9 +171,9 @@ namespace NP {
 				const State* source;
 				const State* target;
 				const Interval<Time> finish_range;
-				//hold the start range also only at an edge
+				// Hold the start range also only at an edge
                 const Interval<Time> start_range;
-                //hold the choosen runing p in an edge
+                // Hold the chosen running p in an edge
                 unsigned int p;
 
 				Edge(const Job<Time>* s, const State* src, const State* tgt,
@@ -249,7 +249,8 @@ namespace NP {
 
 			typedef Interval_lookup_table<Time, Job<Time>, Job<Time>::scheduling_window> Jobs_lut;
 
-			//response times now are unorder map of TG to hold for every p
+			// Response times now are in an unordered map of TG to hold for
+			// every p
             typedef std::unordered_map<JobID, TG> Response_times;
 
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
@@ -343,8 +344,6 @@ namespace NP {
 					_predecessors[index_of(to)].push_back(index_of(from));
 				}
 			}
-
-			private:
 
 			void count_edge()
 			{
@@ -945,10 +944,9 @@ namespace NP {
 				make_initial_state();
 
 				while (current_job_count < jobs.size()) {
-					unsigned long n;
+					unsigned long n = 0;
 #ifdef CONFIG_PARALLEL
 					const auto& new_states_part = states_storage.back();
-					n = 0;
 					for (const States& new_states : new_states_part) {
 						n += new_states.size();
 					}

@@ -190,7 +190,7 @@ namespace NP {
         }
 
 		//create the Job
-		//Only one contructor with S_min and S_max to 1
+		//Only one constructor with S_min and S_max to 1
 		return Job<Time>{jid, Interval<Time>{arr_min, arr_max},
                               costs, dl, prio, s_min, s_max, tid};
 	}
@@ -205,7 +205,7 @@ namespace NP {
 
 		while (more_data(in)) {
 			jobs.push_back(parse_job<Time>(in));
-			// munge any trailing whitespace or extra columns
+			// Mung any trailing whitespace or extra columns
 			next_line(in);
 		}
 
@@ -252,7 +252,7 @@ namespace NP {
 
 		while (more_data(in)) {
 			abort_actions.push_back(parse_abort_action<Time>(in));
-			// munge any trailing whitespace or extra columns
+			// Mung any trailing whitespace or extra columns
 			next_line(in);
 		}
 
