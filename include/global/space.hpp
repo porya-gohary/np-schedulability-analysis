@@ -1093,7 +1093,10 @@ namespace NP {
 					if (j.earliest_arrival() > t_wc)
 						break;
 
-					if (!ready(s, j)) continue;
+					// Job could be not ready due to precedence constraints
+					if (!ready(s, j))
+						continue;
+
 					// Since this job is released in the future, it better
 					// be incomplete...
 					assert(unfinished(s, j));
