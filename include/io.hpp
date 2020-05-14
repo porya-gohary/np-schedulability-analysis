@@ -39,15 +39,6 @@ namespace NP {
 		return !in.eof();
 	}
 
-#ifndef GANG
-    inline void next_field(std::istream& in)
-	{
-		// eat up any trailing spaces
-		skip_all(in, ' ');
-		// eat up field separator
-		skip_one(in, ',');
-	}
-#else
     //return true if a field separator is found
     inline bool next_field(std::istream& in)
     {
@@ -65,7 +56,6 @@ namespace NP {
         // eat up field separator
         return skip_one(in, ':');
     }
-#endif
 
 	inline void next_line(std::istream& in)
 	{
@@ -124,14 +114,12 @@ namespace NP {
 		std::ios_base::iostate state_before = in.exceptions();
 
 		Time arr_min, arr_max, cost_min, cost_max, dl, prio;
-#ifdef GANG
         std::vector<Interval<Time>> costs;
         //temporary vectors
         std::vector<Time> costs_min;
         std::vector<Time> costs_max;
         //if s_min and s_max is not found set to 1
         unsigned long s_min = SINGLE_CORE, s_max = SINGLE_CORE;
-#endif
 
 		in.exceptions(std::istream::failbit | std::istream::badbit);
 
@@ -142,14 +130,7 @@ namespace NP {
 		in >> arr_min;
 		next_field(in);
 		in >> arr_max;
-#ifndef GANG
-        next_field(in);
-        in >> cost_min;
-        next_field(in);
-        in >> cost_max;
-#endif
 
-#ifdef GANG
         //Generalization to get all costs
         //eat comma
         next_field(in);
@@ -179,23 +160,19 @@ namespace NP {
 
         for(auto i=0;i<costs_min.size();i++)
             costs.emplace_back(costs_min[i],costs_max[i]);
-#endif
         next_field(in);
         in >> dl;
         next_field(in);
         in >> prio;
 
-#ifdef GANG
         //parse s_min,s_max if exists
 		if(next_field(in))
 		    in >> s_min;
         if(next_field(in))
             in >> s_max;
-#endif
 
         in.exceptions(state_before);
 
-#ifdef GANG
         //check for correctness
 		assert(s_max > 0 && s_min > 0);
 		assert(s_max >= s_min);
@@ -213,14 +190,9 @@ namespace NP {
         }
 
 		//create the Job
-		//Only one contructor with S_min and S_max to 1
+		//Only one constructor with S_min and S_max to 1
 		return Job<Time>{jid, Interval<Time>{arr_min, arr_max},
                               costs, dl, prio, s_min, s_max, tid};
-
-#else
-        return Job<Time>{jid, Interval<Time>{arr_min, arr_max},
-                         Interval<Time>{cost_min, cost_max}, dl, prio, tid};
-#endif
 	}
 
 	template<class Time>
@@ -233,7 +205,7 @@ namespace NP {
 
 		while (more_data(in)) {
 			jobs.push_back(parse_job<Time>(in));
-			// munge any trailing whitespace or extra columns
+			// Mung any trailing whitespace or extra columns
 			next_line(in);
 		}
 
@@ -280,7 +252,7 @@ namespace NP {
 
 		while (more_data(in)) {
 			abort_actions.push_back(parse_abort_action<Time>(in));
-			// munge any trailing whitespace or extra columns
+			// Mung any trailing whitespace or extra columns
 			next_line(in);
 		}
 

@@ -11,9 +11,7 @@
 
 #include "config.h"
 
-#ifdef GANG
 #define SINGLE_CORE 1
-#endif
 
 namespace NP {
 
@@ -40,14 +38,13 @@ namespace NP {
 		}
 	};
 
-#ifdef GANG
 	//a class to hold S_min and S_max for each job
     struct Scores {
         unsigned long s_min;
         unsigned long s_max;
 
         Scores(unsigned long min, unsigned long max)
-                : s_min(min), s_max(max)
+		: s_min(min), s_max(max)
         {
         }
 
@@ -62,7 +59,6 @@ namespace NP {
             return stream;
         }
     };
-#endif
 
 	template<class Time> class Job {
 
@@ -72,14 +68,10 @@ namespace NP {
 
 	private:
 		Interval<Time> arrival;
-#ifdef GANG
         //Define s_min,s_max
         Scores scores;
         //0 position corresponds to s_min
         std::vector<Interval<Time>> costs;
-#else
-		Interval<Time> cost;
-#endif
 		Time deadline;
 		Priority priority;
 		JobID id;
@@ -89,41 +81,37 @@ namespace NP {
 		void compute_hash() {
 			auto h = std::hash<Time>{};
 			key = h(arrival.from());
-			key = (key << 4) ^ h(id.task);
-			key = (key << 4) ^ h(arrival.until());
-#ifdef GANG
+			key = (key << 4u) ^ h(id.task);
+			key = (key << 4u) ^ h(arrival.until());
+
 			//accumulate min costs only for hash
-			key = (key << 4) ^ h(get_add_cost_min());
-#else
-			key = (key << 4) ^ h(cost.from());
-#endif
-			key = (key << 4) ^ h(deadline);
-#ifdef GANG
+			key = (key << 4u) ^ h(get_add_cost_min());
+			key = (key << 4u) ^ h(deadline);
+
             //accumulate max costs only for hash
-			key = (key << 4) ^ h(get_add_cost_max());
-#else
-			key = (key << 4) ^ h(cost.upto());
-#endif
-			key = (key << 4) ^ h(id.job);
-			key = (key << 4) ^ h(priority);
-#ifdef GANG
+			key = (key << 4u) ^ h(get_add_cost_max());
+			key = (key << 4u) ^ h(id.job);
+			key = (key << 4u) ^ h(priority);
+
 			//adding s_min and s_max to hash of a job
-            key = (key << 4) ^ h(scores.s_min);
-            key = (key << 4) ^ h(scores.s_max);
-#endif
+            key = (key << 4u) ^ h(scores.s_min);
+            key = (key << 4u) ^ h(scores.s_max);
 		}
 
 	public:
 
-#ifdef GANG
         Job(unsigned long id,
-            Interval<Time> arr, std::vector<Interval<Time>> &acosts,
-            Time dl, Priority prio,
+            Interval<Time> arr, std::vector<Interval<Time>> &costs,
+            Time dl, Priority priority,
             unsigned long s_min, unsigned long s_max,
             unsigned long tid = 0)
-                : arrival(arr),
-                  costs(acosts),
-                  deadline(dl), priority(prio), id(id, tid),scores(s_min, s_max)
+		: arrival(arr)
+		, costs(costs)
+		, deadline(dl)
+		, priority(priority)
+		, id(id, tid)
+		, scores(s_min, s_max)
+		, key(0)
         {
             compute_hash();
         }
@@ -132,24 +120,16 @@ namespace NP {
 			Interval<Time> arr, Interval<Time> cost,
 			Time dl, Priority prio,
 			unsigned long tid = 0)
-		    : arrival(arr),
-		    deadline(dl), priority(prio), id(id, tid)
-		    ,scores(SINGLE_CORE, SINGLE_CORE)
+		: arrival(arr)
+		, deadline(dl)
+		, priority(prio)
+		, id(id, tid)
+		, scores(SINGLE_CORE, SINGLE_CORE)
+		, key(0)
 		{
             costs.emplace_back(cost);
 			compute_hash();
 		}
-#else
-		Job(unsigned long id,
-			Interval<Time> arr, Interval<Time> cost,
-			Time dl, Priority prio,
-			unsigned long tid = 0)
-		: arrival(arr), cost(cost),
-		  deadline(dl), priority(prio), id(id, tid)
-		{
-			compute_hash();
-		}
-#endif
 
 		hash_value_t get_key() const
 		{
@@ -171,7 +151,6 @@ namespace NP {
 			return arrival;
 		}
 
-#ifdef GANG
         //Generalise return cost depend on s
         Time least_cost(unsigned long s = SINGLE_CORE) const
         {
@@ -214,22 +193,6 @@ namespace NP {
             }
             return acc;
         }
-#else
-		Time least_cost() const
-		{
-			return cost.from();
-		}
-
-		Time maximal_cost() const
-		{
-			return cost.upto();
-		}
-
-		const Interval<Time>& get_cost() const
-		{
-			return cost;
-		}
-#endif
 
 		Priority get_priority() const
 		{
@@ -263,7 +226,6 @@ namespace NP {
 			return id.task;
 		}
 
-#ifdef GANG
         Scores get_scores() const
 		{
 			return scores;
@@ -278,7 +240,6 @@ namespace NP {
         {
             return scores.s_max;
         }
-#endif
 
 		bool is(const JobID& search_id) const
 		{
@@ -325,7 +286,6 @@ namespace NP {
 			return j.scheduling_window();
 		}
 
-#ifdef GANG
         //in order to print all costs and s!
 		friend std::ostream& operator<< (std::ostream& stream, const Job& j)
 		{
@@ -336,15 +296,6 @@ namespace NP {
 			       << ", " << j.scores << "}";
 			return stream;
 		}
-#else
-        friend std::ostream& operator<< (std::ostream& stream, const Job& j)
-        {
-            stream << "Job{" << j.id.job << ", " << j.arrival << ", "
-                   << j.cost << ", " << j.deadline << ", " << j.priority
-                   << ", " << j.id.task << "}";
-            return stream;
-        }
-#endif
 
 	};
 
@@ -361,13 +312,13 @@ namespace NP {
 	{
 		public:
 
-		InvalidJobReference(const JobID& bad_id)
+		explicit InvalidJobReference(const JobID& bad_id)
 		: ref(bad_id)
 		{}
 
 		const JobID ref;
 
-		virtual const char* what() const noexcept override
+		const char* what() const noexcept override
 		{
 			return "invalid job reference";
 		}
@@ -401,7 +352,7 @@ namespace std {
 		std::size_t operator()(NP::JobID const& id) const
 		{
 			hash<unsigned long> h;
-			return (h(id.job) << 4) ^ h(id.task);
+			return (h(id.job) << 4u) ^ h(id.task);
 		}
 
 	};
