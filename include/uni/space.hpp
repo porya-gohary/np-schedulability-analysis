@@ -12,6 +12,7 @@
 #include <iostream>
 #include <ostream>
 #include <cassert>
+#include <queue>
 
 #include "config.h"
 #include "problem.hpp"
@@ -161,7 +162,7 @@ namespace NP {
 				return edges;
 			}
 
-			const std::deque<State>& get_states() const
+			const std::deque<State*>& get_states() const
 			{
 				return states;
 			}
@@ -171,14 +172,14 @@ namespace NP {
 
 			typedef Job_set Scheduled;
 
-			typedef std::deque<State> States;
-			typedef typename std::deque<State>::iterator State_ref;
+			typedef std::deque<State*> States;
+			typedef State* State_ref;
 			typedef std::unordered_multimap<hash_value_t, State_ref> States_map;
 
 			typedef const Job<Time>* Job_ref;
 			typedef std::multimap<Time, Job_ref> By_time_map;
 
-			typedef std::deque<State_ref> Todo_queue;
+			typedef std::priority_queue<State_ref, std::deque<State_ref>, bool (*)(State_ref, State_ref)> Todo_queue;
 
 			typedef std::unordered_map<JobID, Interval<Time> > Response_times;
 
@@ -210,10 +211,11 @@ namespace NP {
 			unsigned long num_states, num_edges, width;
 			States_map states_by_key;
 
-			static const std::size_t num_todo_queues = 3;
+			bool (* todo_queue_cmp)(State_ref, State_ref) = [](State_ref left, State_ref right) {
+				return left->get_scheduled_jobs().size() > right->get_scheduled_jobs().size();
+			};
 
-			Todo_queue todo[num_todo_queues];
-			int todo_idx;
+			Todo_queue todo;
 			unsigned long current_job_count;
 
 			Processor_clock cpu_time;
@@ -240,7 +242,7 @@ namespace NP {
 			, num_states(0)
 			, num_edges(0)
 			, width(0)
-			, todo_idx(0)
+			, todo(todo_queue_cmp)
 			, current_job_count(0)
 			, job_precedence_sets(jobs.size())
 			, early_exit(early_exit)
@@ -550,38 +552,26 @@ namespace NP {
 			template <typename... Args>
 			State& new_state(Args&&... args)
 			{
-				states.emplace_back(std::forward<Args>(args)...);
-				State_ref s_ref = --states.end();
+				State_ref s_ref = new State(std::forward<Args>(args)...);
 
-				auto njobs = s_ref->get_scheduled_jobs().size();
-				assert (
-					(!njobs && num_states == 0) // initial state
-				    || (njobs == current_job_count + 1) // normal State
-				    || (njobs == current_job_count + 2 && aborted) // deadline miss
-				);
-				auto idx = njobs % num_todo_queues;
-				todo[idx].push_back(s_ref);
+#ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
+				states.push_back(s_ref);
+#endif
+				todo.push(s_ref);
 				states_by_key.insert(std::make_pair(s_ref->get_key(), s_ref));
 				num_states++;
-				width = std::max(width, (unsigned long) todo[idx].size() - 1);
+				width = std::max(width, (unsigned long) todo.size() - 1);
 				return *s_ref;
 			}
 
 			bool not_done()
 			{
-				// if the curent queue is empty, move on to the next
-				if (todo[todo_idx].empty()) {
-					current_job_count++;
-					todo_idx = current_job_count % num_todo_queues;
-					return !todo[todo_idx].empty();
-				} else
-					return true;
+				return !todo.empty();
 			}
 
 			const State& next_state()
 			{
-				auto s = todo[todo_idx].front();
-				return *s;
+				return *todo.top();
 			}
 
 			bool in_todo(State_ref s)
@@ -603,16 +593,17 @@ namespace NP {
 			void check_depth_abort()
 			{
 				if (max_depth && current_job_count == max_depth
-				    && todo[todo_idx].empty()) {
+				    && todo.empty()) {
 					aborted = true;
 				}
 			}
 
 			void done_with_current_state()
 			{
-				State_ref s = todo[todo_idx].front();
+				State_ref s = todo.top();
 				// remove from TODO list
-				todo[todo_idx].pop_front();
+				todo.pop();
+				current_job_count = s->get_scheduled_jobs().size();
 
 #ifndef CONFIG_COLLECT_SCHEDULE_GRAPH
 				// If we don't need to collect all states, we can remove
@@ -631,8 +622,7 @@ namespace NP {
 				assert(deleted);
 
 				// delete from master sequence to free up memory
-				assert(states.begin() == s);
-				states.pop_front();
+				delete s;
 #endif
 			}
 
@@ -786,7 +776,7 @@ namespace NP {
 					DM("\n==================================================="
 					   << std::endl);
 					DM("Looking at: S"
-					   << (todo[todo_idx].front() - states.begin() + 1)
+					   << (todo.top() - *states.begin() + 1)
 					   << " " << s << std::endl);
 
 					// Identify relevant interval for next job
@@ -798,7 +788,6 @@ namespace NP {
 					Interval<Time> next_range{std::min(ts_min, rel_min), t_l};
 
 					DM("ts_min = " << ts_min << std::endl <<
-					   "latest_idle = " << latest_idle << std::endl <<
 					   "latest_finish = " <<s.latest_finish_time() << std::endl);
 					DM("=> next range = " << next_range << std::endl);
 
@@ -888,7 +877,7 @@ namespace NP {
 					DM("\n==================================================="
 					   << std::endl);
 					DM("Looking at: S"
-					   << (todo[todo_idx].front() - states.begin() + 1)
+					   << (todo.top() - *states.begin() + 1)
 					   << " " << s << std::endl);
 
 					// Identify relevant interval for next job
@@ -901,7 +890,6 @@ namespace NP {
 
 					DM("ts_min = " << ts_min << std::endl <<
 					   "rel_min = " << rel_min << std::endl <<
-					   "latest_idle = " << latest_idle << std::endl <<
 					   "latest_finish = " << s.latest_finish_time() << std::endl);
 					DM("=> next range = " << next_range << std::endl);
 
@@ -947,20 +935,20 @@ namespace NP {
 					std::map<const Schedule_state<Time>*, unsigned int> state_id;
 					unsigned int i = 1;
 					out << "digraph {" << std::endl;
-					for (const Schedule_state<Time>& s : space.get_states()) {
-						state_id[&s] = i++;
-						out << "\tS" << state_id[&s]
-						    << "[label=\"S" << state_id[&s] << ": ["
-						    << s.earliest_finish_time()
+					for (const Schedule_state<Time>* s : space.get_states()) {
+						state_id[s] = i++;
+						out << "\tS" << state_id[s]
+						    << "[label=\"S" << state_id[s] << ": ["
+						    << s->earliest_finish_time()
 						    << ", "
-						    << s.latest_finish_time()
+						    << s->latest_finish_time()
 						    << "]"
 						    << "\\nER=";
-						if (s.earliest_job_release() ==
+						if (s->earliest_job_release() ==
 						    Time_model::constants<Time>::infinity()) {
 							out << "N/A";
 						} else {
-							out << s.earliest_job_release();
+							out << s->earliest_job_release();
 						}
 						out << "\"];"
 							<< std::endl;
