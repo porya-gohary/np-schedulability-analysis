@@ -113,6 +113,14 @@ namespace NP {
 				return cpu_time;
 			}
 
+			unsigned long number_of_por_successes() const {
+				return 0;
+			}
+
+			unsigned long number_of_por_failures() const {
+				return 0;
+			}
+
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
 
 			struct Edge {
@@ -130,34 +138,34 @@ namespace NP {
 				{
 				}
 
-				bool deadline_miss_possible() const
+				virtual bool deadline_miss_possible() const
 				{
 					return scheduled->exceeds_deadline(finish_range.upto());
 				}
 
-				Time earliest_finish_time() const
+				virtual Time earliest_finish_time() const
 				{
 					return finish_range.from();
 				}
 
-				Time latest_finish_time() const
+				virtual Time latest_finish_time() const
 				{
 					return finish_range.upto();
 				}
 
-				Time earliest_start_time() const
+				virtual Time earliest_start_time() const
 				{
 					return finish_range.from() - scheduled->least_cost();
 				}
 
-				Time latest_start_time() const
+				virtual Time latest_start_time() const
 				{
 					return finish_range.upto() - scheduled->maximal_cost();
 				}
 
 			};
 
-			const std::deque<Edge>& get_edges() const
+			const std::deque<std::unique_ptr<Edge>>& get_edges() const
 			{
 				return edges;
 			}
@@ -168,7 +176,7 @@ namespace NP {
 			}
 
 #endif
-			private:
+			protected:
 
 			typedef Job_set Scheduled;
 
@@ -187,7 +195,7 @@ namespace NP {
 
 
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
-			std::deque<Edge> edges;
+			std::deque<std::unique_ptr<Edge>> edges;
 #endif
 
 			IIP iip;
@@ -265,7 +273,7 @@ namespace NP {
 				}
 			}
 
-			private:
+			protected:
 
 			static Time max_deadline(const Workload &jobs)
 			{
@@ -377,21 +385,21 @@ namespace NP {
 // Iterate over all incomplete jobs in state ppj_macro_local_s.
 // ppj_macro_local_j is of type const Job<Time>*
 #define foreach_possibly_pending_job(ppj_macro_local_s, ppj_macro_local_j) 	\
-	for (auto ppj_macro_local_it = jobs_by_earliest_arrival			\
+	for (auto ppj_macro_local_it = this->jobs_by_earliest_arrival			\
                      .lower_bound((ppj_macro_local_s).earliest_job_release()); \
-	     ppj_macro_local_it != jobs_by_earliest_arrival.end() 				\
+	     ppj_macro_local_it != this->jobs_by_earliest_arrival.end() 				\
 	        && (ppj_macro_local_j = ppj_macro_local_it->second); 	\
 	     ppj_macro_local_it++) \
-		if (incomplete(ppj_macro_local_s, *ppj_macro_local_j))
+		if (this->incomplete(ppj_macro_local_s, *ppj_macro_local_j))
 
 // Iterate over all incomplete jobs that are released no later than ppju_macro_local_until
 #define foreach_possbly_pending_job_until(ppju_macro_local_s, ppju_macro_local_j, ppju_macro_local_until) 	\
-	for (auto ppju_macro_local_it = jobs_by_earliest_arrival			\
+	for (auto ppju_macro_local_it = this->jobs_by_earliest_arrival			\
                      .lower_bound((ppju_macro_local_s).earliest_job_release()); \
-	     ppju_macro_local_it != jobs_by_earliest_arrival.end() 				\
+	     ppju_macro_local_it != this->jobs_by_earliest_arrival.end() 				\
 	        && (ppju_macro_local_j = ppju_macro_local_it->second, ppju_macro_local_j->earliest_arrival() <= (ppju_macro_local_until)); 	\
 	     ppju_macro_local_it++) \
-		if (incomplete(ppju_macro_local_s, *ppju_macro_local_j))
+		if (this->incomplete(ppju_macro_local_s, *ppju_macro_local_j))
 
 // Iterare over all incomplete jobs that are certainly released no later than
 // cpju_macro_local_until
@@ -750,7 +758,7 @@ namespace NP {
 				// update statistics
 				num_edges++;
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
-				edges.emplace_back(&j, &from, &to, finish_range);
+				edges.push_back(std::make_unique<Edge>(&j, &from, &to, finish_range));
 #endif
 			}
 
@@ -795,18 +803,7 @@ namespace NP {
 
 					DM("\n---\nChecking for pending and later-released jobs:"
 					   << std::endl);
-					const Job<Time>* jp;
-					foreach_possbly_pending_job_until(s, jp, next_range.upto()) {
-						const Job<Time>& j = *jp;
-						DM("+ " << j << std::endl);
-						// if it can be scheduled next...
-						if (is_eligible_successor(s, j)) {
-							DM("  --> can be next "  << std::endl);
-							// create the relevant state and continue
-							schedule_job(s, j);
-							found_at_least_one = true;
-						}
-					}
+					schedule_eligible_successors_naively(s, next_range, found_at_least_one);
 
 					DM("---\nDone iterating over all jobs." << std::endl);
 
@@ -825,6 +822,21 @@ namespace NP {
 				}
 			}
 
+			virtual void schedule_eligible_successors_naively(const State &s, const Interval<Time> &next_range, bool &found_at_least_one)
+			{
+				const Job<Time>* jp;
+				foreach_possbly_pending_job_until(s, jp, next_range.upto()) {
+						const Job<Time>& j = *jp;
+						DM("+ " << j << std::endl);
+						// if it can be scheduled next...
+						if (is_eligible_successor(s, j)) {
+							DM("  --> can be next "  << std::endl);
+							// create the relevant state and continue
+							schedule_job(s, j);
+							found_at_least_one = true;
+						}
+					}
+			}
 
 			void schedule(const State &s, const Job<Time> &j)
 			{
@@ -897,18 +909,7 @@ namespace NP {
 
 					DM("\n---\nChecking for pending and later-released jobs:"
 					   << std::endl);
-					const Job<Time>* jp;
-					foreach_possbly_pending_job_until(s, jp, next_range.upto()) {
-						const Job<Time>& j = *jp;
-						DM("+ " << j << std::endl);
-						// if it can be scheduled next...
-						if (is_eligible_successor(s, j)) {
-							DM("  --> can be next "  << std::endl);
-							// create the relevant state and continue
-							schedule(s, j);
-							found_at_least_one = true;
-						}
-					}
+					schedule_eligible_successors(s, next_range, found_at_least_one);
 
 					DM("---\nDone iterating over all jobs." << std::endl);
 
@@ -928,7 +929,51 @@ namespace NP {
 				}
 			}
 
+			virtual void schedule_eligible_successors(const State &s, const Interval<Time> &next_range, bool &found_at_least_one)
+			{
+				const Job<Time>* jp;
+				foreach_possbly_pending_job_until(s, jp, next_range.upto()) {
+					const Job<Time>& j = *jp;
+					DM("+ " << j << std::endl);
+					// if it can be scheduled next...
+					if (is_eligible_successor(s, j)) {
+						DM("  --> can be next "  << std::endl);
+						// create the relevant state and continue
+						schedule(s, j);
+						found_at_least_one = true;
+					}
+				}
+			}
+
 #ifdef CONFIG_COLLECT_SCHEDULE_GRAPH
+			virtual void print_edge(std::ostream& out, const std::unique_ptr<Edge>& e, unsigned int source_id, unsigned int target_id) const
+			{
+				out << "\tS" << source_id
+					<< " -> "
+					<< "S" << target_id
+					<< "[label=\""
+					<< "T" << e->scheduled->get_task_id()
+					<< " J" << e->scheduled->get_job_id()
+					<< "\\nDL=" << e->scheduled->get_deadline()
+					<< "\\nES=" << e->earliest_start_time()
+					<< "\\nLS=" << e->latest_start_time()
+					<< "\\nEF=" << e->earliest_finish_time()
+					<< "\\nLF=" << e->latest_finish_time()
+					<< "\"";
+				if (e->deadline_miss_possible()) {
+					out << ",color=Red,fontcolor=Red";
+				}
+				out << ",fontsize=8" << "]"
+					<< ";"
+					<< std::endl;
+				if (e->deadline_miss_possible()) {
+					out << "S" << target_id
+						<< "[color=Red];"
+						<< std::endl;
+				}
+			}
+
+
 			friend std::ostream& operator<< (std::ostream& out,
 			                                 const State_space<Time, IIP>& space)
 			{
@@ -953,30 +998,8 @@ namespace NP {
 						out << "\"];"
 							<< std::endl;
 					}
-					for (auto e : space.get_edges()) {
-						out << "\tS" << state_id[e.source]
-						    << " -> "
-						    << "S" << state_id[e.target]
-						    << "[label=\""
-						    << "T" << e.scheduled->get_task_id()
-						    << " J" << e.scheduled->get_job_id()
-						    << "\\nDL=" << e.scheduled->get_deadline()
-						    << "\\nES=" << e.earliest_start_time()
- 						    << "\\nLS=" << e.latest_start_time()
-						    << "\\nEF=" << e.earliest_finish_time()
-						    << "\\nLF=" << e.latest_finish_time()
-						    << "\"";
-						if (e.deadline_miss_possible()) {
-							out << ",color=Red,fontcolor=Red";
-						}
-						out << ",fontsize=8" << "]"
-						    << ";"
-						    << std::endl;
-						if (e.deadline_miss_possible()) {
-							out << "S" << state_id[e.target]
-								<< "[color=Red];"
-								<< std::endl;
-						}
+					for (auto& e : space.get_edges()) {
+						space.print_edge(out, e, state_id[e->source], state_id[e->target]);
 					}
 					out << "}" << std::endl;
 				return out;

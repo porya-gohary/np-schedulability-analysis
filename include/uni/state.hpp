@@ -1,3 +1,6 @@
+#ifndef SCHEDULE_STATE_H
+#define SCHEDULE_STATE_H
+
 #include <iostream>
 #include <ostream>
 #include <cassert>
@@ -8,6 +11,7 @@
 #include "index_set.hpp"
 #include "jobs.hpp"
 #include "cache.hpp"
+#include "reduction_set.hpp"
 
 namespace NP {
 
@@ -53,6 +57,24 @@ namespace NP {
 			, earliest_pending_release{next_earliest_release}
 			{
 			}
+
+			// transition: new state by scheduling a set of jobs in an existing state
+			Schedule_state(
+					const Schedule_state& from,
+					const Reduction_set<Time>& r,
+					const std::vector<std::size_t>& idxs,
+					Interval<Time> ftimes,
+					const Time next_earliest_release)
+					: finish_time{ftimes}
+					, scheduled_jobs{from.scheduled_jobs}
+					, lookup_key{from.next_key(r)}
+					, earliest_pending_release{next_earliest_release}
+			{
+				for (std::size_t idx : idxs) {
+					scheduled_jobs.add(idx);
+				}
+			}
+
 
 			Time earliest_finish_time() const
 			{
@@ -101,6 +123,11 @@ namespace NP {
 				return get_key() ^ j.get_key();
 			}
 
+			hash_value_t next_key(const Reduction_set<Time> &r) const
+			{
+				return get_key() ^ r.get_key();
+			}
+
 			friend std::ostream& operator<< (std::ostream& stream,
 			                                 const Schedule_state<Time>& s)
 			{
@@ -112,3 +139,5 @@ namespace NP {
 
 	}
 }
+
+#endif

@@ -17,6 +17,7 @@
 
 #include "problem.hpp"
 #include "uni/space.hpp"
+#include "uni/por_space.hpp"
 #include "global/space.hpp"
 #include "io.hpp"
 #include "clock.hpp"
@@ -29,6 +30,8 @@ static bool want_naive;
 static bool want_dense;
 static bool want_prm_iip;
 static bool want_cw_iip;
+static bool want_priority_por;
+static bool want_release_por;
 
 static bool want_precedence = false;
 static std::string precedence_file;
@@ -60,6 +63,7 @@ struct Analysis_result {
 	double cpu_time;
 	std::string graph;
 	std::string response_times_csv;
+	unsigned long por_successes, por_failures;
 };
 
 template<class Time, class Space>
@@ -125,7 +129,9 @@ static Analysis_result analyze(
 		problem.jobs.size(),
 		space.get_cpu_time(),
 		graph.str(),
-		rta.str()
+		rta.str(),
+		space.number_of_por_successes(),
+		space.number_of_por_failures()
 	};
 }
 
@@ -142,12 +148,20 @@ static Analysis_result process_stream(
 		return analyze<dense_t, NP::Uniproc::State_space<dense_t, NP::Uniproc::Precatious_RM_IIP<dense_t>>>(in, dag_in, aborts_in);
 	else if (want_dense && want_cw_iip)
 		return analyze<dense_t, NP::Uniproc::State_space<dense_t, NP::Uniproc::Critical_window_IIP<dense_t>>>(in, dag_in, aborts_in);
+	else if (want_dense && want_priority_por)
+		return analyze<dense_t, NP::Uniproc::Por_state_space<dense_t, NP::Uniproc::Null_IIP<dense_t>, NP::Uniproc::POR_priority_order<dense_t>>>(in, dag_in, aborts_in);
+	else if (want_dense && want_release_por)
+		return analyze<dense_t, NP::Uniproc::Por_state_space<dense_t, NP::Uniproc::Null_IIP<dense_t>, NP::Uniproc::POR_release_order<dense_t>>>(in, dag_in, aborts_in);
 	else if (want_dense && !want_prm_iip)
 		return analyze<dense_t, NP::Uniproc::State_space<dense_t>>(in, dag_in, aborts_in);
 	else if (!want_dense && want_prm_iip)
 		return analyze<dtime_t, NP::Uniproc::State_space<dtime_t, NP::Uniproc::Precatious_RM_IIP<dtime_t>>>(in, dag_in, aborts_in);
 	else if (!want_dense && want_cw_iip)
 		return analyze<dtime_t, NP::Uniproc::State_space<dtime_t, NP::Uniproc::Critical_window_IIP<dtime_t>>>(in, dag_in, aborts_in);
+	else if (!want_dense && want_priority_por)
+		return analyze<dtime_t, NP::Uniproc::Por_state_space<dtime_t, NP::Uniproc::Null_IIP<dtime_t>, NP::Uniproc::POR_priority_order<dtime_t>>>(in, dag_in, aborts_in);
+	else if (!want_dense && want_release_por)
+		return analyze<dtime_t, NP::Uniproc::Por_state_space<dtime_t, NP::Uniproc::Null_IIP<dtime_t>, NP::Uniproc::POR_release_order<dtime_t>>>(in, dag_in, aborts_in);
 	else
 		return analyze<dtime_t, NP::Uniproc::State_space<dtime_t>>(in, dag_in, aborts_in);
 }
@@ -226,6 +240,8 @@ static void process_file(const std::string& fname)
 		          << ",  " << ((double) mem_used) / (1024.0)
 		          << ",  " << (int) result.timeout
 		          << ",  " << num_processors
+		          << ",  " << result.por_successes
+		          << ",  " << result.por_failures
 		          << std::endl;
 	} catch (std::ios_base::failure& ex) {
 		std::cerr << fname;
@@ -263,6 +279,8 @@ static void print_header(){
 	          << ", memory"
 	          << ", timeout"
 	          << ", #CPUs"
+	          << ", #POR successes"
+	          << ", #POR failures"
 	          << std::endl;
 }
 
@@ -329,6 +347,10 @@ int main(int argc, char** argv)
 	      .help("do not abort the analysis on the first deadline miss "
 	            "(default: off)");
 
+	parser.add_option("--por").dest("por")
+		  .choices({"none", "priority", "release"}).set_default("none")
+		  .help("the type of partial-order reduction to use (default: none)");
+
 
 	auto options = parser.parse_args(argc, argv);
 
@@ -338,6 +360,10 @@ int main(int argc, char** argv)
 	const std::string& iip = options.get("iip");
 	want_prm_iip = iip == "P-RM";
 	want_cw_iip = iip == "CW";
+
+	const std::string& por = options.get("por");
+	want_priority_por = por == "priority";
+	want_release_por = por == "release";
 
 	want_naive = options.get("naive");
 
@@ -372,6 +398,16 @@ int main(int argc, char** argv)
 	num_processors = options.get("num_processors");
 	if (!num_processors || num_processors > MAX_PROCESSORS) {
 		std::cerr << "Error: invalid number of processors\n" << std::endl;
+		return 1;
+	}
+
+	if ((want_priority_por || want_release_por) && num_processors > 1) {
+		std::cerr << "Error: partial-order reduction is currently only available for uniprocessor\n" << std::endl;
+		return 1;
+	}
+
+	if ((want_priority_por || want_release_por) && (want_prm_iip || want_cw_iip)) {
+		std::cerr << "Error: partial-order reduction currently does not support idle-time insertion policies\n" << std::endl;
 		return 1;
 	}
 
