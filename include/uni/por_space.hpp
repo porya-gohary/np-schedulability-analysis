@@ -83,6 +83,11 @@ namespace NP {
 				return reduction_failures;
 			}
 
+			std::vector<Reduction_set_statistics<Time>> get_reduction_set_statistics() const
+			{
+				return reduction_set_statistics;
+			}
+
 			protected:
 
 			using State_space<Time, IIP>::explore;
@@ -91,6 +96,7 @@ namespace NP {
 
 			POR_criterion por_criterion;
 			unsigned long reduction_successes, reduction_failures;
+			std::vector<Reduction_set_statistics<Time>> reduction_set_statistics;
 
 			Por_state_space(const Workload& jobs,
 							const Precedence_constraints &dag_edges,
@@ -103,6 +109,7 @@ namespace NP {
 			, por_criterion()
 			, reduction_successes(0)
 			, reduction_failures(0)
+			, reduction_set_statistics()
 			{}
 
 			void schedule_eligible_successors_naively(const State &s, const Interval<Time> &next_range, bool &found_at_least_one) override
@@ -243,6 +250,8 @@ namespace NP {
 				while (true) {
 					if (reduction_set.has_potential_deadline_misses()) {
 						reduction_failures++;
+						reduction_set_statistics.push_back(Reduction_set_statistics<Time>{false, reduction_set});
+
 						return reduction_set;
 					}
 
@@ -258,6 +267,8 @@ namespace NP {
 
 					if (interfering_jobs.empty()) {
 						reduction_successes++;
+						reduction_set_statistics.push_back(Reduction_set_statistics<Time>{true, reduction_set});
+
 						return reduction_set;;
 					} else {
 						const Job<Time>* jx = por_criterion.select_job(interfering_jobs);
