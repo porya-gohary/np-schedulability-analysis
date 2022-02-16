@@ -6,6 +6,7 @@
 #include <cassert>
 #include <algorithm>
 #include <map>
+#include <numeric>
 
 #include "jobs.hpp"
 
@@ -17,6 +18,7 @@ namespace NP {
 			public:
 
 			typedef std::vector<const Job<Time>*> Job_set;
+			typedef std::vector<std::size_t> Job_precedence_set;
 			typedef std::unordered_map<JobID, Time> Job_map;
 			typedef typename Job<Time>::Priority Priority;
 
@@ -24,6 +26,8 @@ namespace NP {
 
 			Interval<Time> cpu_availability;
 			Job_set jobs;
+			std::vector<std::size_t> indices;
+			std::vector<Job_precedence_set> job_precedence_sets;
 			Job_set jobs_by_latest_arrival;
 			Job_set jobs_by_earliest_arrival;
 			Job_set jobs_by_wcet;
@@ -33,17 +37,23 @@ namespace NP {
 			hash_value_t key;
 			Priority max_priority;
 			unsigned long num_interfering_jobs_added;
+			std::unordered_map<JobID, std::size_t> index_by_job;
+			std::map<std::size_t, const Job<Time>*> job_by_index;
 
 			public:
 
-			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs)
+			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> &indices, const std::vector<Job_precedence_set> &job_precedence_sets)
 			: cpu_availability{cpu_availability},
 			jobs{jobs},
+			indices{indices},
+			job_precedence_sets{job_precedence_sets},
 			jobs_by_latest_arrival{jobs},
 			jobs_by_earliest_arrival{jobs},
 			jobs_by_wcet{jobs},
 			key{0},
-			num_interfering_jobs_added{0}
+			num_interfering_jobs_added{0},
+			index_by_job(),
+			job_by_index()
 			{
 				std::sort(jobs_by_latest_arrival.begin(), jobs_by_latest_arrival.end(),
 						  [](const Job<Time>* i, const Job<Time>* j) -> bool { return i->latest_arrival() < j->latest_arrival(); });
@@ -59,7 +69,19 @@ namespace NP {
 				latest_start_times = compute_latest_start_times();
 				max_priority = compute_max_priority();
 				initialize_key();
+
+				for (int i = 0; i < jobs.size(); i++) {
+					auto j = jobs[i];
+					std::size_t idx = indices[i];
+
+					index_by_job.emplace(j->get_id(), idx);
+					job_by_index.emplace(std::make_pair(idx, jobs[i]));
+				}
 			}
+
+			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> indices)
+			: Reduction_set(cpu_availability, jobs, indices, {})
+			{}
 
 			Job_set get_jobs() const {
 				return jobs;
@@ -92,35 +114,12 @@ namespace NP {
 				return false;
 			}
 
-			bool can_interfere(const Job<Time> &job) const {
-				auto pos = std::find_if(jobs.begin(), jobs.end(),
-										[&job] (const Job<Time>* j) { return j->get_id() == job.get_id(); } );
-
-				// A job can't interfere with itself
-				if(pos != jobs.end()) {
+			bool can_interfere(const Job<Time> &job, const Job_precedence_set &job_precedence_set, const Index_set &scheduled_jobs) {
+				if (! job_satisfies_precedence_constraints(job_precedence_set, scheduled_jobs)) {
 					return false;
 				}
 
-				// rx_min <= l_M
-				if (job.earliest_arrival() <= latest_idle_time) {
-					return true;
-				}
-
-				Time min_wcet = min_lower_priority_wcet(job);
-				Time max_arrival = jobs_by_latest_arrival.back()->latest_arrival();
-
-				if (!job.priority_exceeds(max_priority) && job.earliest_arrival() >= max_arrival) {
-					return false;
-				}
-
-				// There exists a J_i s.t. rx_min <= s_i and p_x < p_i
-				for (const Job<Time>* j : jobs) {
-					if (job.earliest_arrival() <= get_latest_start_time(*j) && job.higher_priority_than(*j)) {
-						return true;
-					}
-				}
-
-				return false;
+				return can_interfere(job);
 			}
 
 			void add_job(const Job<Time>* jx) {
@@ -183,6 +182,57 @@ namespace NP {
 
 			private:
 
+			bool job_satisfies_precedence_constraints(const Job_precedence_set &job_precedence_set, const Index_set &scheduled_jobs) {
+				if (job_precedence_set.empty()) {
+					return true;
+				}
+
+				Index_set scheduled_union_reduction_set{scheduled_jobs};
+
+				for (auto idx : indices) {
+					scheduled_union_reduction_set.add(idx);
+				}
+
+				Index_set predecessor_indices{};
+
+				for (auto idx : job_precedence_set) {
+					predecessor_indices.add(idx);
+				}
+
+				return scheduled_union_reduction_set.includes(job_precedence_set) && !predecessor_indices.includes(indices);
+			}
+
+			bool can_interfere(const Job<Time> &job) const {
+				auto pos = std::find_if(jobs.begin(), jobs.end(),
+										[&job] (const Job<Time>* j) { return j->get_id() == job.get_id(); } );
+
+				// A job can't interfere with itself
+				if(pos != jobs.end()) {
+					return false;
+				}
+
+				// rx_min < delta_M
+				if (job.earliest_arrival() <= latest_idle_time) {
+					return true;
+				}
+
+				Time min_wcet = min_lower_priority_wcet(job);
+				Time max_arrival = jobs_by_latest_arrival.back()->latest_arrival();
+
+				if (!job.priority_exceeds(max_priority) && job.earliest_arrival() >= max_arrival) {
+					return false;
+				}
+
+				// There exists a J_i s.t. rx_min <= LST^hat_i and p_x < p_i
+				for (const Job<Time>* j : jobs) {
+					if (job.earliest_arrival() <= get_latest_start_time(*j) && job.higher_priority_than(*j)) {
+						return true;
+					}
+				}
+
+				return false;
+			}
+
 			Time compute_latest_busy_time() {
 				Time t = cpu_availability.max();
 
@@ -194,15 +244,90 @@ namespace NP {
 			}
 
 			Job_map compute_latest_start_times() {
+				std::unordered_map<JobID, Priority> job_prio_map = preprocess_priorities();
+
 				Job_map start_times{};
 				for (const Job<Time>* j : jobs) {
-					start_times.emplace(j->get_id(), compute_latest_start_time(*j));
+					start_times.emplace(j->get_id(), compute_latest_start_time(*j, job_prio_map));
 				}
 
 				return start_times;
 			}
 
-			Time compute_latest_start_time(const Job<Time> &i) {
+			// Preprocess priorities for s_i by setting priority of each job to the lowest priority of its predecessors
+			std::unordered_map<JobID, Priority> preprocess_priorities() {
+				std::unordered_map<JobID, Priority> job_prio_map{};
+				auto topo_sorted_jobs = topological_sort<Time>(job_precedence_sets, jobs);
+
+				for (auto j: jobs) {
+					const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(j->get_id())->second];
+					Priority max_pred_prio = 0;
+
+					for (auto pred_idx: preds) {
+						auto iterator = job_by_index.find(pred_idx);
+
+						// We ignore all predecessors outside the reduction set
+						if (iterator == job_by_index.end()) {
+							continue;
+						}
+
+						auto pred = iterator->second;
+						max_pred_prio = std::max(max_pred_prio, pred->get_priority());
+					}
+
+					Priority p = std::max(j->get_priority(), max_pred_prio);
+					job_prio_map.emplace(j->get_id(), p);
+				}
+				return job_prio_map;
+			}
+
+			Time compute_latest_start_time(const Job<Time> &i, const std::unordered_map<JobID, Priority> &job_prio_map) {
+				Time s_i = compute_si(i, job_prio_map);
+
+				return std::min(s_i, compute_second_lst_bound(i));
+			}
+
+			// Upper bound on latest start time (LFT^bar - sum(C_j^max) - C_i^max)
+			Time compute_second_lst_bound(const Job<Time> &i) {
+				Job_set descendants = get_descendants(i);
+
+				return latest_busy_time - i.maximal_cost() - std::accumulate(descendants.begin(), descendants.end(), 0,
+																			 [](int x, auto &y) {
+																				 return x + y->maximal_cost();
+																			 });
+			}
+
+			// Gets all descendants of J_i in J^M
+			Job_set get_descendants(const Job <Time> &i) {
+				Job_set remaining_jobs{jobs};
+				Job_set descendants{};
+
+				std::deque<Job<Time>> queue{};
+				queue.push_back(i);
+
+				while (not queue.empty()) {
+					Job<Time> &j = queue.front();
+					queue.pop_front();
+					size_t index_j = index_by_job.find(j.get_id())->second;
+
+					for (auto k: remaining_jobs) {
+						const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(k->get_id())->second];
+						// k is a successor of j
+						if (std::find(preds.begin(), preds.end(), index_j) != preds.end()) {
+							descendants.push_back(k);
+							queue.push_back(*k);
+						}
+					}
+
+					std::remove_if(remaining_jobs.begin(), remaining_jobs.end(), [descendants](auto &x) {
+						return std::find(descendants.begin(), descendants.end(), x) != descendants.end();
+					});
+				}
+				return descendants;
+			}
+
+			// Upper bound on latest start time (s_i)
+			Time compute_si(const Job <Time> &i, const std::unordered_map<JobID, Priority> &job_prio_map) {
 				const Job<Time>* blocking_job = nullptr;
 
 				for (const Job<Time>* j : jobs_by_earliest_arrival) {
@@ -210,7 +335,8 @@ namespace NP {
 						continue;
 					}
 
-					if (i.higher_priority_than(*j) && (blocking_job == nullptr || blocking_job->maximal_cost() < j->maximal_cost())) {
+					// use preprocessed prio level
+					if (i.priority_exceeds(job_prio_map.find(j->get_id())->second) && (blocking_job == nullptr || blocking_job->maximal_cost() < j->maximal_cost())) {
 						blocking_job = j;
 					}
 				}
@@ -223,14 +349,14 @@ namespace NP {
 						continue;
 					}
 
-					if (j->earliest_arrival() <= latest_start_time && j->higher_priority_than(i)) {
+					if (j->earliest_arrival() <= latest_start_time && !i.priority_exceeds(job_prio_map.find(j->get_id())->second)) {
 						latest_start_time += j->maximal_cost();
 					} else if (j->earliest_arrival() > latest_start_time) {
 						break;
 					}
 				}
 
-				return std::min(latest_start_time, latest_busy_time - i.maximal_cost());
+				return latest_start_time;
 			}
 
 			Time compute_latest_idle_time() {

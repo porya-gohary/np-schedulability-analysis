@@ -1,7 +1,6 @@
 #ifndef POR_SCHEDULE_SPACE_H
 #define POR_SCHEDULE_SPACE_H
 
-#include <unordered_set>
 #include <unordered_map>
 #include <map>
 #include <vector>
@@ -38,6 +37,7 @@ namespace NP {
 			typedef typename State_space<Time, IIP>::Workload Workload;
 			typedef typename State_space<Time, IIP>::Abort_actions Abort_actions;
 			typedef typename State_space<Time, IIP>::State State;
+			typedef typename State_space<Time, IIP>::Job_precedence_set Job_precedence_set;
 
 			static Por_state_space explore(
 					const Problem& prob,
@@ -46,7 +46,10 @@ namespace NP {
 				// this is a uniprocessor analysis
 				assert(prob.num_processors == 1);
 
-				Por_state_space s = Por_state_space(prob.jobs, prob.dag, prob.aborts,
+				// Preprocess the job such that they release at or after their predecessors release
+				auto jobs = topological_sort<Time>(prob.dag, prob.jobs);
+
+				Por_state_space s = Por_state_space(jobs, prob.dag, prob.aborts,
 									 opts.timeout, opts.max_depth,
 									 opts.num_buckets, opts.early_exit);
 				s.cpu_time.start();
@@ -245,7 +248,13 @@ namespace NP {
 
 			Reduction_set<Time> create_reduction_set(const State &s, typename Reduction_set<Time>::Job_set &eligible_successors)
 			{
-				Reduction_set<Time> reduction_set{Interval<Time>{s.earliest_finish_time(), s.latest_finish_time()}, eligible_successors};
+				std::vector<std::size_t> indices{};
+
+				for (const Job<Time>* j: eligible_successors) {
+					indices.push_back(this->index_of(*j));
+				}
+
+				Reduction_set<Time> reduction_set{Interval<Time>{s.earliest_finish_time(), s.latest_finish_time()}, eligible_successors, indices};
 
 				while (true) {
 					if (reduction_set.has_potential_deadline_misses()) {
@@ -260,7 +269,8 @@ namespace NP {
 					const Job<Time>* jp;
 					foreach_possbly_pending_job_until(s, jp, reduction_set.get_latest_busy_time() - reduction_set.get_min_wcet()) {
 							const Job<Time>& j = *jp;
-							if (reduction_set.can_interfere(j)) {
+							const Job_precedence_set &preds = this->job_precedence_sets[this->index_of(j)];
+							if (reduction_set.can_interfere(j, preds, s.get_scheduled_jobs())) {
 								interfering_jobs.push_back(jp);
 							}
 						}

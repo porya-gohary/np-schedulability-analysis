@@ -201,7 +201,7 @@ Without the job abort action specified in [examples/abort.actions.csv](examples/
 
 ### Partial-order reduction
 
-The uniprocessor analysis supports **partial-order reduction** for job sets without precedence constraints, which avoids combinatorial exploration of possible scheduling decisions by treating particular sets of jobs as a batch of scheduling decisions on a *single edge* in the SAG. To enable partial-order reduction, pass the desired type of partial-order reduction via the `--por` option. For example: 
+The uniprocessor analysis supports **partial-order reduction**, which avoids combinatorial exploration of possible scheduling decisions by treating particular sets of jobs as a batch of scheduling decisions on a *single edge* in the SAG. To enable partial-order reduction, pass the desired type of partial-order reduction via the `--por` option. For example: 
 
 ```
 $ build/nptest examples/por.csv --por=priority

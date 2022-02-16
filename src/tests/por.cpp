@@ -7,13 +7,15 @@
 using namespace NP::Uniproc;
 using namespace NP;
 
+typedef std::vector<std::size_t> Job_precedence_set;
+
 TEST_CASE("[Partial-order reduction] Example") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 10), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 9), I(2, 2), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+	Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, std::vector<std::size_t>{}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -54,7 +56,7 @@ TEST_CASE("[Partial-order reduction] Example 2") {
     Job<dtime_t> j5{5, I(5, 21), I(2, 2), 22, 5};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j3, &j5};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 23);
@@ -76,22 +78,22 @@ TEST_CASE("[Partial-order reduction] Example 2") {
 
     SUBCASE("Jx cannot interfere because r_x > te - min_wcet") {
         Job<dtime_t> jx{2, I(22, 23), I(2, 2), 100, 2};
-        CHECK(!reduction_set.can_interfere(jx));
+        CHECK(!reduction_set.can_interfere(jx, {}, {}));
     }
 
     SUBCASE("Jx cannot interfere because J_x has a lower priority and r_x >= max(r_max)") {
         Job<dtime_t> jx{6, I(22, 23), I(2, 2), 100, 6};
-        CHECK(!reduction_set.can_interfere(jx));
+        CHECK(!reduction_set.can_interfere(jx, {}, {}));
     }
 
     SUBCASE("Jx can interfere because there exists a J_i such that r_x <= s_i and p_x < p_i") {
         Job<dtime_t> jx{2, I(14, 23), I(2, 2), 100, 2};
-        CHECK(reduction_set.can_interfere(jx));
+        CHECK(reduction_set.can_interfere(jx, {}, {}));
     }
 
     SUBCASE("Jx can interfere because r_x <= l_M") {
         Job<dtime_t> jx{6, I(19, 23), I(2, 2), 100, 6};
-        CHECK(reduction_set.can_interfere(jx));
+        CHECK(reduction_set.can_interfere(jx, {}, {}));
     }
 
     SUBCASE("Adding job to reduction set doesn't change latest busy time") {
@@ -131,7 +133,7 @@ TEST_CASE("[Partial-order reduction] Example 3") {
     Job<dtime_t> j4{4, I(5, 10), I(2, 2), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -164,7 +166,7 @@ TEST_CASE("[Partial-order reduction] Example 4") {
     Job<dtime_t> j4{4, I(5, 8), I(2, 2), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -181,7 +183,7 @@ TEST_CASE("[Partial-order reduction] Example 5") {
     Job<dtime_t> j4{4, I(5, 10), I(2, 2), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -198,7 +200,7 @@ TEST_CASE("[Partial-order reduction] Example 6") {
     Job<dtime_t> j4{4, I(5, 7), I(2, 2), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -216,7 +218,7 @@ TEST_CASE("[Partial-order reduction] Example 7") {
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 28, 4};
     std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 20);
@@ -238,7 +240,7 @@ TEST_CASE("[Partial-order reduction] Example 8") {
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 18);
@@ -260,7 +262,7 @@ TEST_CASE("[Partial-order reduction] Example 9") {
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 29, 4};
     std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 20);
@@ -282,7 +284,7 @@ TEST_CASE("[Partial-order reduction] Example 10") {
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 19);
@@ -298,7 +300,7 @@ TEST_CASE("[Partial-order reduction] Example 11") {
     Job<dtime_t> j4{4, I(5, 14), I(10, 10), 100, 4};
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 9), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 9), jobs, {}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 25);
@@ -317,7 +319,7 @@ TEST_CASE("[Partial-order reduction] Example 12") {
     Job<dtime_t> j2{2, I(9, 12), I(2, 2), 100, 2};
     std::vector<const Job<dtime_t>* > jobs{&j0, &j1, &j2};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
 
     SUBCASE("Latest idle time when r_min has different order than r_max") {
         CHECK(reduction_set.get_latest_idle_time() == 11);
@@ -332,14 +334,14 @@ TEST_CASE("[Partial-order reduction] Latest idle time") {
     Job<dtime_t> t7j7{7, I(120000, 120490), I(529, 662), 140000, 7, 7};
     std::vector<const Job<dtime_t>* > jobs{&t1j125, &t1j126, &t2j63, &t7j7};
 
-    Reduction_set<dtime_t> reduction_set{I(123389, 124025), jobs};
+    Reduction_set<dtime_t> reduction_set{I(123389, 124025), jobs, {}};
 
     SUBCASE("Latest idle time when r_min has different order than r_max") {
         CHECK(reduction_set.get_latest_idle_time() == 125033);
     }
 
     SUBCASE("T3J26 can interfere because r_min before end of idle interval") {
-        CHECK(reduction_set.can_interfere(t3j26));
+        CHECK(reduction_set.can_interfere(t3j26, {}, {}));
     }
 }
 
@@ -382,7 +384,7 @@ TEST_CASE("[Partial-order reduction] Keys") {
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 100, 4};
 
     std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {1, 2, 3}};
 
     SUBCASE("Individual jobs") {
         Schedule_state<dtime_t> s0{};
@@ -406,5 +408,147 @@ TEST_CASE("[Partial-order reduction] Keys") {
         CHECK(s2.get_key() == (j0.get_key() ^ j1.get_key() ^ j2.get_key() ^ j4.get_key()));
         CHECK(s2.get_key() == (j0.get_key() ^ reduction_set.get_key()));
     }
+
+}
+
+TEST_CASE("[Partial-order reduction] Precedence constraints") {
+	Job<dtime_t> j0{0, I(0, 0), I(7, 13), 100, 0};
+	Job<dtime_t> j1{1, I(6, 8), I(1, 2), 100, 1};
+	Job<dtime_t> j2{2, I(7, 10), I(1, 2), 100, 2};
+	Job<dtime_t> j3{3, I(12, 13), I(1, 3), 100, 3};
+	Job<dtime_t> j4{4, I(5, 9), I(1, 2), 100, 4};
+	Job<dtime_t> j5{5, I(25, 29), I(1, 2), 100, 5};
+
+	std::vector<Job<dtime_t>> jobs{j0, j1, j2, j3, j4, j5};
+	std::vector<const Job<dtime_t>*> reduction_jobs{&j1, &j2, &j4};
+	Reduction_set<dtime_t> reduction_set{I(7, 13), reduction_jobs, {1, 2, 4}};
+	Index_set scheduled_jobs{Index_set(), 0};
+
+	SUBCASE("Job can possibly interfere if its predecessors have completed") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(0); // J0 precedes J3
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job can possibly interfere if it has no predecessors") {
+		Job_precedence_set job_precedence_set;
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job can possibly interfere if a job in the reduction set is its predecessor (case 1)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(1); // J1 precedes J3
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job can possibly interfere if a job in the reduction set is its predecessor (case 2)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(2); // J2 precedes J3
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job can possibly interfere if some jobs in the reduction set are its predecessors (case 1)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(1); // J1 precedes J3
+		job_precedence_set.push_back(2); // J2 precedes J3
+
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job can possibly interfere if some jobs in the reduction set are its predecessors (case 2)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(1); // J1 precedes J3
+		job_precedence_set.push_back(4); // J4 precedes J3
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job can possibly interfere if some jobs in the reduction set are its predecessors (case 3)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(2); // J2 precedes J3
+		job_precedence_set.push_back(4); // J4 precedes J3
+
+		CHECK(reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job cannot interfere if all jobs in the reduction set are its predecessors (case 1)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(1); // J1 precedes J3
+		job_precedence_set.push_back(2); // J2 precedes J3
+		job_precedence_set.push_back(4); // J4 precedes J3
+
+		CHECK(! reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job cannot interfere if all jobs in the reduction set are its predecessors (case 2)") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(0); // J0 precedes J3
+		job_precedence_set.push_back(1); // J1 precedes J3
+		job_precedence_set.push_back(2); // J2 precedes J3
+		job_precedence_set.push_back(4); // J4 precedes J3
+
+		CHECK(! reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+	SUBCASE("Job cannot interfere if its predecessors have not completed yet") {
+		Job_precedence_set job_precedence_set;
+		job_precedence_set.push_back(5); // J5 precedes J3
+
+		CHECK(! reduction_set.can_interfere(j3, job_precedence_set, scheduled_jobs));
+	}
+
+}
+
+TEST_CASE("Topological sort precedence constraints") {
+	Job<dtime_t> j0{0, I(0, 0), I(7, 13), 100, 0};
+	Job<dtime_t> j1{1, I(6, 8), I(1, 2), 100, 1};
+	Job<dtime_t> j2{2, I(7, 10), I(1, 2), 100, 2};
+	Job<dtime_t> j3{3, I(12, 13), I(1, 3), 100, 3};
+	Job<dtime_t> j4{4, I(5, 9), I(1, 2), 100, 4};
+	Job<dtime_t> j5{5, I(25, 29), I(1, 2), 100, 5};
+
+	std::vector<Job<dtime_t>> jobs{j0, j1, j2, j3, j4, j5};
+
+	SUBCASE("Topological sort 1") {
+		std::vector<Job_precedence_set> job_precedence_sets(jobs.size());
+		job_precedence_sets[0].push_back(1); // J0 precedes J1
+		job_precedence_sets[1].push_back(2);
+		job_precedence_sets[2].push_back(3);
+		job_precedence_sets[3].push_back(4);
+		job_precedence_sets[4].push_back(5);
+
+		auto topo_sorted = topological_sort<dtime_t>(job_precedence_sets, jobs);
+
+		CHECK(topo_sorted[0].get_id() == JobID(5, 0));
+		CHECK(topo_sorted[1].get_id() == JobID(4, 0));
+		CHECK(topo_sorted[2].get_id() == JobID(3, 0));
+		CHECK(topo_sorted[3].get_id() == JobID(2, 0));
+		CHECK(topo_sorted[4].get_id() == JobID(1, 0));
+		CHECK(topo_sorted[5].get_id() == JobID(0, 0));
+	}
+
+	SUBCASE("Topological sort 2") {
+		std::vector<Job_precedence_set> job_precedence_sets(jobs.size());
+		job_precedence_sets[1].push_back(0);
+		job_precedence_sets[2].push_back(1);
+		job_precedence_sets[3].push_back(2);
+		job_precedence_sets[3].push_back(4);
+		job_precedence_sets[4].push_back(1);
+		job_precedence_sets[5].push_back(3);
+
+		auto topo_sorted = topological_sort<dtime_t>(job_precedence_sets, jobs);
+
+		CHECK(topo_sorted[0].get_id() == JobID(0, 0));
+		CHECK(topo_sorted[1].get_id() == JobID(1, 0));
+		CHECK((topo_sorted[2].get_id() == JobID(2, 0) || topo_sorted[2].get_id() == JobID(4, 0)));
+		CHECK((topo_sorted[3].get_id() == JobID(2, 0) || topo_sorted[3].get_id() == JobID(4, 0)));
+		CHECK(topo_sorted[4].get_id() == JobID(3, 0));
+		CHECK(topo_sorted[5].get_id() == JobID(5, 0));
+	}
 
 }
