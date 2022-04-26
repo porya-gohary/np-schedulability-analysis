@@ -199,6 +199,22 @@ examples/abort.jobs.csv,  0,  4,  5,  4,  0,  0.000088,  1760.000000,  0,  1
 
 Without the job abort action specified in [examples/abort.actions.csv](examples/abort.actions.csv), the workload can indeed miss deadlines and is thus unschedulable.
 
+### Partial-order reduction
+
+The uniprocessor analysis supports **partial-order reduction**, which avoids combinatorial exploration of possible scheduling decisions by treating particular sets of jobs as a batch of scheduling decisions on a *single edge* in the SAG. To enable partial-order reduction, pass the desired type of partial-order reduction via the `--por` option. For example: 
+
+```
+$ build/nptest examples/por.csv --por=priority
+examples/por.csv,  1,  7,  4,  3,  1,  0.001415,  3.847656,  0,  1,  2,  0
+```
+
+Details on partial-order reduction can be found in the following papers:
+
+- S. Ranjha, M. Nasri and G. Nelissen, "Work-in-Progress: Partial-Order Reduction in Reachability-based Response-Time Analyses", *2021 IEEE Real-Time Systems Symposium (RTSS)*, 2021, pp. 544-547.
+- S. Ranjha, G. Nelissen and M. Nasri, "Partial-Order Reduction for Schedule-Abstraction-based Response-Time Analyses for Non-Preemptive Scheduling", *2022 IEEE 28th Real-Time and Embedded Technology and Applications Symposium (RTAS)*, 2022.
+
+**NOTE**: when using partial-order reduction, the schedulability analysis is exact, whereas the response-time analysis is safe (i.e., the BCRT and WCRT are lower and upper bounds on the response times, respectively).
+
 ## Output Format
 
 The output is provided in CSV format and consists of the following columns:
@@ -215,6 +231,8 @@ The output is provided in CSV format and consists of the following columns:
 8. The peak amount of memory used (as reported by `getrusage()`), divided by 1024. Due to non-portable differences in `getrusage()`, on Linux this reports the memory usage in megabytes, whereas on macOS it reports the memory usage in kilobytes.
 9. A timeout indicator: 1 if the state-space exploration was aborted due to reaching the time limit (as set with the `-l` option); 0 otherwise. 
 10. The number of processors assumed during the analysis. 
+11. The number of successful partial-order reductions.
+12. The number of failed partial-order reductions.
 
 Pass the `--header` flag to `nptest` to print out column headers. 
 

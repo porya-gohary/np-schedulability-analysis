@@ -115,6 +115,14 @@ namespace NP {
 				return cpu_time;
 			}
 
+			unsigned long number_of_por_successes() const {
+				return 0;
+			}
+
+			unsigned long number_of_por_failures() const {
+				return 0;
+			}
+
 			typedef std::deque<State> States;
 
 #ifdef CONFIG_PARALLEL
