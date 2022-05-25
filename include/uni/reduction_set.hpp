@@ -143,7 +143,7 @@ namespace NP {
 			}
 
 			Time earliest_start_time() const {
-				return std::max(cpu_availability.min(), (*jobs_by_latest_arrival.begin())->earliest_arrival());
+				return std::max(cpu_availability.min(), (*jobs_by_earliest_arrival.begin())->earliest_arrival());
 			}
 
 			Time earliest_finish_time() const {
