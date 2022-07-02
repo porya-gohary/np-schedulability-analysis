@@ -15,14 +15,14 @@ namespace NP {
 	namespace Uniproc {
 
 		template<class Time> class Reduction_set {
-			public:
+		public:
 
 			typedef std::vector<const Job<Time>*> Job_set;
 			typedef std::vector<std::size_t> Job_precedence_set;
 			typedef std::unordered_map<JobID, Time> Job_map;
 			typedef typename Job<Time>::Priority Priority;
 
-			private:
+		private:
 
 			Interval<Time> cpu_availability;
 			Job_set jobs;
@@ -40,7 +40,7 @@ namespace NP {
 			std::unordered_map<JobID, std::size_t> index_by_job;
 			std::map<std::size_t, const Job<Time>*> job_by_index;
 
-			public:
+		public:
 
 			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> &indices, const std::vector<Job_precedence_set> &job_precedence_sets)
 			: cpu_availability{cpu_availability},
@@ -64,12 +64,6 @@ namespace NP {
 				std::sort(jobs_by_wcet.begin(), jobs_by_wcet.end(),
 						  [](const Job<Time>* i, const Job<Time>* j) -> bool { return i->maximal_cost() < j->maximal_cost(); });
 
-				latest_busy_time = compute_latest_busy_time();
-				latest_idle_time = compute_latest_idle_time();
-				latest_start_times = compute_latest_start_times();
-				max_priority = compute_max_priority();
-				initialize_key();
-
 				for (int i = 0; i < jobs.size(); i++) {
 					auto j = jobs[i];
 					std::size_t idx = indices[i];
@@ -77,11 +71,14 @@ namespace NP {
 					index_by_job.emplace(j->get_id(), idx);
 					job_by_index.emplace(std::make_pair(idx, jobs[i]));
 				}
-			}
 
-			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> indices)
-			: Reduction_set(cpu_availability, jobs, indices, {})
-			{}
+				latest_busy_time = compute_latest_busy_time();
+				latest_idle_time = compute_latest_idle_time();
+				latest_start_times = compute_latest_start_times();
+				max_priority = compute_max_priority();
+				initialize_key();
+
+			}
 
 			Job_set get_jobs() const {
 				return jobs;
@@ -180,7 +177,7 @@ namespace NP {
 				return num_interfering_jobs_added;
 			}
 
-			private:
+		private:
 
 			bool job_satisfies_precedence_constraints(const Job_precedence_set &job_precedence_set, const Index_set &scheduled_jobs) {
 				if (job_precedence_set.empty()) {
@@ -443,7 +440,7 @@ namespace NP {
 
 		template<class Time> class Reduction_set_statistics {
 
-			public:
+		public:
 
 			bool reduction_success;
 
