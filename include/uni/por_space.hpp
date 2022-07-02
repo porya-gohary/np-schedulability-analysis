@@ -290,7 +290,7 @@ namespace NP {
 						return reduction_set;;
 					} else {
 						const Job<Time>* jx = por_criterion.select_job(interfering_jobs);
-						reduction_set.add_job(jx);
+						reduction_set.add_job(jx,this->index_of(*jx));
 					}
 				}
 

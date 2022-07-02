@@ -80,6 +80,11 @@ namespace NP {
 
 			}
 
+			// For test purposes
+            Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> indices)
+                    : Reduction_set(cpu_availability, jobs, indices, std::vector<Job_precedence_set>(jobs.size()))
+            {}
+
 			Job_set get_jobs() const {
 				return jobs;
 			}
@@ -119,9 +124,13 @@ namespace NP {
 				return can_interfere(job);
 			}
 
-			void add_job(const Job<Time>* jx) {
+			void add_job(const Job<Time>* jx, std::size_t index) {
 				num_interfering_jobs_added++;
 				jobs.push_back(jx);
+
+				index_by_job.emplace(jx->get_id(), index);
+				job_by_index.emplace(std::make_pair(index, jobs.back()));
+
 				insert_sorted(jobs_by_latest_arrival, jx,
 							  [](const Job<Time>* i, const Job<Time>* j) -> bool { return i->latest_arrival() < j->latest_arrival(); });
 				insert_sorted(jobs_by_earliest_arrival, jx,
