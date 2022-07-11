@@ -100,11 +100,54 @@ namespace NP {
 		return sorted_jobs;
 	}
 
+    template<class Time>
+    typename Job<Time>::Job_set set_arrival_times(const std::vector<Job_precedence_set>& job_precedence_sets,
+                                                 typename Job<Time>::Job_set jobs)
+    {
+        std::unordered_map<JobID, std::size_t> job_index_map{};
+
+        for (auto& j : jobs) {
+            job_index_map.emplace(j.get_id(), index_of(j, jobs));
+        }
+
+        for (auto& j : jobs) {
+            size_t idx = job_index_map.find(j.get_id())->second;
+            const Job_precedence_set &preds = job_precedence_sets[idx];
+            Time max_earliest_arrival_time = j.earliest_arrival();
+            Time max_latest_arrival_time = j.latest_arrival();
+            if (!preds.empty()) {
+                for (auto pred_idx : preds) {
+                    const Job<Time>& pred = jobs[pred_idx];
+                    max_earliest_arrival_time = std::max(max_earliest_arrival_time, pred.earliest_arrival());
+                    max_latest_arrival_time = std::max(max_latest_arrival_time, pred.latest_arrival());
+                }
+            }
+            j.set_arrival(Interval<Time>(max_earliest_arrival_time,max_latest_arrival_time));
+        }
+        return jobs;
+
+    }
+
 	template<class Time>
 	std::size_t index_of(const Job<Time>& j, const typename Job<Time>::Job_set& jobs)
 	{
 		return (std::size_t) (&j - &(jobs[0]));
 	}
+
+    template<class Time>
+    typename Job<Time>::Job_set preprocess_jobs(const Precedence_constraints& dag,
+                                                const typename Job<Time>::Job_set& jobs)
+    {
+        std::vector<Job_precedence_set> job_precedence_sets(jobs.size());
+
+        for (auto e : dag) {
+            const Job<Time>& from = lookup<Time>(jobs, e.first);
+            const Job<Time>& to   = lookup<Time>(jobs, e.second);
+            job_precedence_sets[index_of(to, jobs)].push_back(index_of(from, jobs));
+        }
+
+        return topological_sort<Time>(job_precedence_sets, set_arrival_times<Time>(job_precedence_sets,jobs));
+    }
 
 }
 

@@ -82,7 +82,7 @@ namespace NP {
 
 			// For test purposes
             Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> indices)
-                    : Reduction_set(cpu_availability, jobs, indices, std::vector<Job_precedence_set>(jobs.size()))
+                    : Reduction_set(cpu_availability, jobs, indices, {})
             {}
 
 			Job_set get_jobs() const {
@@ -204,7 +204,7 @@ namespace NP {
 				for (auto idx : job_precedence_set) {
 					predecessor_indices.add(idx);
 				}
-
+                // ?????
 				return scheduled_union_reduction_set.includes(job_precedence_set) && !predecessor_indices.includes(indices);
 			}
 
@@ -263,27 +263,35 @@ namespace NP {
 			// Preprocess priorities for s_i by setting priority of each job to the lowest priority of its predecessors
 			std::unordered_map<JobID, Priority> preprocess_priorities() {
 				std::unordered_map<JobID, Priority> job_prio_map{};
-				auto topo_sorted_jobs = topological_sort<Time>(job_precedence_sets, jobs);
+//				???
 
-				for (auto j: jobs) {
-					const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(j->get_id())->second];
-					Priority max_pred_prio = 0;
+                if (!job_precedence_sets.empty()) {
+                    auto topo_sorted_jobs = topological_sort<Time>(job_precedence_sets, jobs);
+                    for (auto j: topo_sorted_jobs) {
+                        const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(j.get_id())->second];
+                        Priority max_pred_prio = 0;
 
-					for (auto pred_idx: preds) {
-						auto iterator = job_by_index.find(pred_idx);
+                        for (auto pred_idx: preds) {
+                            auto iterator = job_by_index.find(pred_idx);
 
-						// We ignore all predecessors outside the reduction set
-						if (iterator == job_by_index.end()) {
-							continue;
-						}
+                            // We ignore all predecessors outside the reduction set
+                            if (iterator == job_by_index.end()) {
+                                continue;
+                            }
 
-						auto pred = iterator->second;
-						max_pred_prio = std::max(max_pred_prio, pred->get_priority());
-					}
+                            auto pred = iterator->second;
+                            max_pred_prio = std::max(max_pred_prio, pred->get_priority());
+                        }
 
-					Priority p = std::max(j->get_priority(), max_pred_prio);
-					job_prio_map.emplace(j->get_id(), p);
-				}
+                        Priority p = std::max(j.get_priority(), max_pred_prio);
+                        job_prio_map.emplace(j.get_id(), p);
+                    }
+                }else{
+                //in this case we don't have precedence constraints, so we just set the priority to the job's own priority
+                    for (auto j: jobs) {
+                        job_prio_map.emplace(j->get_id(), j->get_priority());
+                    }
+                }
 				return job_prio_map;
 			}
 
@@ -314,16 +322,20 @@ namespace NP {
 				while (not queue.empty()) {
 					Job<Time> &j = queue.front();
 					queue.pop_front();
-					size_t index_j = index_by_job.find(j.get_id())->second;
+                    if (!job_precedence_sets.empty()) {
+                        // if the job set has precedence constraints
+                        size_t index_j = index_by_job.find(j.get_id())->second;
 
-					for (auto k: remaining_jobs) {
-						const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(k->get_id())->second];
-						// k is a successor of j
-						if (std::find(preds.begin(), preds.end(), index_j) != preds.end()) {
-							descendants.push_back(k);
-							queue.push_back(*k);
-						}
-					}
+                        for (auto k: remaining_jobs) {
+                            const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(
+                                    k->get_id())->second];
+                            // k is a successor of j
+                            if (std::find(preds.begin(), preds.end(), index_j) != preds.end()) {
+                                descendants.push_back(k);
+                                queue.push_back(*k);
+                            }
+                        }
+                    }
 
 					std::remove_if(remaining_jobs.begin(), remaining_jobs.end(), [descendants](auto &x) {
 						return std::find(descendants.begin(), descendants.end(), x) != descendants.end();

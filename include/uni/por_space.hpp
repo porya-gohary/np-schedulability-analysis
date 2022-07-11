@@ -47,7 +47,7 @@ namespace NP {
 				assert(prob.num_processors == 1);
 
 				// Preprocess the job such that they release at or after their predecessors release
-				auto jobs = topological_sort<Time>(prob.dag, prob.jobs);
+				auto jobs = preprocess_jobs<Time>(prob.dag, prob.jobs);
 
 				Por_state_space s = Por_state_space(jobs, prob.dag, prob.aborts,
 									 opts.timeout, opts.max_depth,
@@ -169,6 +169,10 @@ namespace NP {
 						}
 					}
 
+                for (int i = 0; i < eligible_successors.size(); ++i) {
+                    DM("eligible_successors[" << i << "] = " << *eligible_successors[i] << std::endl);
+                }
+
 				if (eligible_successors.size() > 1) {
 					Reduction_set<Time> reduction_set = create_reduction_set(s, eligible_successors);
 
@@ -233,7 +237,7 @@ namespace NP {
 						this->new_state(s, reduction_set, indices,
 								  finish_range,
 								  earliest_possible_job_release(s, reduction_set));
-				DM("      -----> S" << (states.end() - states.begin()) << std::endl);
+			//	DM("      -----> S" << (states.end() - states.begin()) << std::endl);
 				process_new_edge(s, next, reduction_set, finish_range);
 			}
 
@@ -250,7 +254,7 @@ namespace NP {
 						this->new_state(s, reduction_set, indices,
 								  finish_range,
 								  earliest_possible_job_release(s, reduction_set));
-				DM("      -----> S" << (states.end() - states.begin()) << std::endl);
+			//	DM("      -----> S" << (states.end() - states.begin()) << std::endl);
 				process_new_edge(s, next, reduction_set, finish_range);
 			}
 
@@ -287,7 +291,7 @@ namespace NP {
 						reduction_successes++;
 						reduction_set_statistics.push_back(Reduction_set_statistics<Time>{true, reduction_set});
 
-						return reduction_set;;
+						return reduction_set;
 					} else {
 						const Job<Time>* jx = por_criterion.select_job(interfering_jobs);
 						reduction_set.add_job(jx,this->index_of(*jx));
