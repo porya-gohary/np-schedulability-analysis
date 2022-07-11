@@ -12,10 +12,13 @@ typedef std::vector<std::size_t> Job_precedence_set;
 TEST_CASE("[Partial-order reduction] Example") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 10), I(2, 2), 100, 2};
+    Job<dtime_t> j3{3, I(9, 11), I(2, 2), 100, 3};
     Job<dtime_t> j4{4, I(5, 9), I(2, 2), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j3, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j2, &j4};
 
-	Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, std::vector<std::size_t>{}};
+
+	Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 3}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -36,8 +39,7 @@ TEST_CASE("[Partial-order reduction] Example") {
     }
 
     SUBCASE("Add job to reduction set") {
-        Job<dtime_t> j3{3, I(9, 11), I(2, 2), 100, 3};
-        reduction_set.add_job(&j3);
+        reduction_set.add_job(&j3, 2);
 
         CHECK(reduction_set.get_latest_busy_time() == 21);
         CHECK(reduction_set.get_latest_idle_time() == -1);
@@ -53,10 +55,13 @@ TEST_CASE("[Partial-order reduction] Example") {
 TEST_CASE("[Partial-order reduction] Example 2") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j3{3, I(7, 10), I(2, 2), 100, 3};
+    Job<dtime_t> j4{4, I(9, 18), I(2, 2), 100, 4};
     Job<dtime_t> j5{5, I(5, 21), I(2, 2), 22, 5};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j3, &j5};
+    Job<dtime_t> j6{6, I(19, 20), I(5, 5), 100, 6};
+    std::vector<const Job<dtime_t>*> jobs{&j1, &j3, &j4, &j5, &j6};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j3, &j5};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 23);
@@ -97,9 +102,7 @@ TEST_CASE("[Partial-order reduction] Example 2") {
     }
 
     SUBCASE("Adding job to reduction set doesn't change latest busy time") {
-        Job<dtime_t> j4{4, I(9, 18), I(2, 2), 100, 4};
-
-        reduction_set.add_job(&j4);
+        reduction_set.add_job(&j4, 2);
 
         CHECK(reduction_set.get_latest_busy_time() == 23);
         CHECK(reduction_set.get_latest_idle_time() == 20);
@@ -111,9 +114,7 @@ TEST_CASE("[Partial-order reduction] Example 2") {
     }
 
     SUBCASE("Adding lower priority job to reduction set changes all start times after the idle time") {
-        Job<dtime_t> j6{6, I(19, 20), I(5, 5), 100, 6};
-
-        reduction_set.add_job(&j6);
+        reduction_set.add_job(&j6, 4);
 
         CHECK(reduction_set.get_latest_busy_time() == 27);
         CHECK(reduction_set.get_latest_idle_time() == 19);
@@ -131,9 +132,11 @@ TEST_CASE("[Partial-order reduction] Example 3") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 11), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 10), I(2, 2), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
+    Job<dtime_t> j5{5, I(9, 11), I(7, 7), 100, 5};
+    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4, &j5};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -150,8 +153,7 @@ TEST_CASE("[Partial-order reduction] Example 3") {
     }
 
     SUBCASE("Adding lower priority job to reduction set changes all start times after the idle time") {
-        Job<dtime_t> j5{5, I(9, 11), I(7, 7), 100, 5};
-        reduction_set.add_job(&j5);
+        reduction_set.add_job(&j5, 3);
 
         CHECK(reduction_set.get_latest_start_time(j1) == 14);
         CHECK(reduction_set.get_latest_start_time(j2) == 19);
@@ -164,9 +166,9 @@ TEST_CASE("[Partial-order reduction] Example 4") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 11), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 8), I(2, 2), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -181,9 +183,9 @@ TEST_CASE("[Partial-order reduction] Example 5") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 12), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 10), I(2, 2), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -198,9 +200,9 @@ TEST_CASE("[Partial-order reduction] Example 6") {
     Job<dtime_t> j1{1, I(6, 7), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 7), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 7), I(2, 2), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 19);
@@ -216,9 +218,9 @@ TEST_CASE("[Partial-order reduction] Example 7") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 20, 1};
     Job<dtime_t> j2{2, I(7, 12), I(2, 2), 26, 2};
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 28, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2, 3}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 20);
@@ -238,9 +240,9 @@ TEST_CASE("[Partial-order reduction] Example 8") {
     Job<dtime_t> j1{1, I(6, 8), I(1, 1), 100, 1};
     Job<dtime_t> j2{2, I(7, 12), I(2, 2), 24, 2};
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2, 3}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 18);
@@ -260,9 +262,9 @@ TEST_CASE("[Partial-order reduction] Example 9") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 21, 1};
     Job<dtime_t> j2{2, I(7, 12), I(2, 2), 27, 2};
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 29, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2, 3}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 20);
@@ -282,9 +284,9 @@ TEST_CASE("[Partial-order reduction] Example 10") {
     Job<dtime_t> j1{1, I(6, 8), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(7, 13), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 10), I(10, 10), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j0, &j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j0, &j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2, 3}};
 
     SUBCASE("Latest start time") {
         CHECK(reduction_set.get_latest_start_time(j0) == 19);
@@ -298,9 +300,9 @@ TEST_CASE("[Partial-order reduction] Example 11") {
     Job<dtime_t> j1{1, I(6, 10), I(3, 3), 100, 1};
     Job<dtime_t> j2{2, I(7, 13), I(2, 2), 100, 2};
     Job<dtime_t> j4{4, I(5, 14), I(10, 10), 100, 4};
-    std::vector<const Job<dtime_t>*> jobs{&j1, &j2, &j4};
+    std::vector<const Job<dtime_t>*> eligible_successors{&j1, &j2, &j4};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 9), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 9), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest busy time") {
         CHECK(reduction_set.get_latest_busy_time() == 25);
@@ -317,9 +319,9 @@ TEST_CASE("[Partial-order reduction] Example 12") {
     Job<dtime_t> j0{0, I(8, 10), I(2, 2), 100, 0};
     Job<dtime_t> j1{1, I(7, 11), I(2, 2), 100, 1};
     Job<dtime_t> j2{2, I(9, 12), I(2, 2), 100, 2};
-    std::vector<const Job<dtime_t>* > jobs{&j0, &j1, &j2};
+    std::vector<const Job<dtime_t>* > eligible_successors{&j0, &j1, &j2};
 
-    Reduction_set<dtime_t> reduction_set{I(7, 13), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(7, 13), eligible_successors, {0, 1, 2}};
 
     SUBCASE("Latest idle time when r_min has different order than r_max") {
         CHECK(reduction_set.get_latest_idle_time() == 11);
@@ -332,9 +334,10 @@ TEST_CASE("[Partial-order reduction] Latest idle time") {
     Job<dtime_t> t2j63{2, I(124000, 124188), I(4, 6), 126000, 2, 63};
     Job<dtime_t> t3j26{3, I(125000, 125144), I(394, 493), 130000, 3, 26};
     Job<dtime_t> t7j7{7, I(120000, 120490), I(529, 662), 140000, 7, 7};
-    std::vector<const Job<dtime_t>* > jobs{&t1j125, &t1j126, &t2j63, &t7j7};
+    std::vector<const Job<dtime_t>* > jobs{&t1j125, &t1j126, &t2j63, &t3j26, &t7j7};
+    std::vector<const Job<dtime_t>* > eligible_successors{&t1j125, &t1j126, &t2j63, &t7j7};
 
-    Reduction_set<dtime_t> reduction_set{I(123389, 124025), jobs, {}};
+    Reduction_set<dtime_t> reduction_set{I(123389, 124025), eligible_successors, {0, 1, 2, 4}};
 
     SUBCASE("Latest idle time when r_min has different order than r_max") {
         CHECK(reduction_set.get_latest_idle_time() == 125033);
