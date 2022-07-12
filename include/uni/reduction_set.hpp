@@ -130,6 +130,7 @@ namespace NP {
 
 				index_by_job.emplace(jx->get_id(), index);
 				job_by_index.emplace(std::make_pair(index, jobs.back()));
+                indices.push_back(index);
 
 				insert_sorted(jobs_by_latest_arrival, jx,
 							  [](const Job<Time>* i, const Job<Time>* j) -> bool { return i->latest_arrival() < j->latest_arrival(); });
@@ -205,7 +206,10 @@ namespace NP {
 					predecessor_indices.add(idx);
 				}
                 // ?????
-				return scheduled_union_reduction_set.includes(job_precedence_set) && !predecessor_indices.includes(indices);
+                auto condition1 = scheduled_union_reduction_set.includes(job_precedence_set);
+                auto condition2 = !predecessor_indices.includes(indices);
+//				return scheduled_union_reduction_set.includes(job_precedence_set) && !predecessor_indices.includes(indices);
+                return condition1 && condition2;
 			}
 
 			bool can_interfere(const Job<Time> &job) const {
