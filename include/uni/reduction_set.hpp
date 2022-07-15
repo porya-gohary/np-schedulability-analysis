@@ -15,14 +15,14 @@ namespace NP {
 	namespace Uniproc {
 
 		template<class Time> class Reduction_set {
-			public:
+		public:
 
 			typedef std::vector<const Job<Time>*> Job_set;
 			typedef std::vector<std::size_t> Job_precedence_set;
 			typedef std::unordered_map<JobID, Time> Job_map;
 			typedef typename Job<Time>::Priority Priority;
 
-			private:
+		private:
 
 			Interval<Time> cpu_availability;
 			Job_set jobs;
@@ -40,7 +40,7 @@ namespace NP {
 			std::unordered_map<JobID, std::size_t> index_by_job;
 			std::map<std::size_t, const Job<Time>*> job_by_index;
 
-			public:
+		public:
 
 			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> &indices, const std::vector<Job_precedence_set> &job_precedence_sets)
 			: cpu_availability{cpu_availability},
@@ -64,12 +64,6 @@ namespace NP {
 				std::sort(jobs_by_wcet.begin(), jobs_by_wcet.end(),
 						  [](const Job<Time>* i, const Job<Time>* j) -> bool { return i->maximal_cost() < j->maximal_cost(); });
 
-				latest_busy_time = compute_latest_busy_time();
-				latest_idle_time = compute_latest_idle_time();
-				latest_start_times = compute_latest_start_times();
-				max_priority = compute_max_priority();
-				initialize_key();
-
 				for (int i = 0; i < jobs.size(); i++) {
 					auto j = jobs[i];
 					std::size_t idx = indices[i];
@@ -77,11 +71,19 @@ namespace NP {
 					index_by_job.emplace(j->get_id(), idx);
 					job_by_index.emplace(std::make_pair(idx, jobs[i]));
 				}
+
+				latest_busy_time = compute_latest_busy_time();
+				latest_idle_time = compute_latest_idle_time();
+				latest_start_times = compute_latest_start_times();
+				max_priority = compute_max_priority();
+				initialize_key();
+
 			}
 
-			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> indices)
-			: Reduction_set(cpu_availability, jobs, indices, {})
-			{}
+			// For test purposes
+            Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> indices)
+                    : Reduction_set(cpu_availability, jobs, indices, {})
+            {}
 
 			Job_set get_jobs() const {
 				return jobs;
@@ -122,9 +124,14 @@ namespace NP {
 				return can_interfere(job);
 			}
 
-			void add_job(const Job<Time>* jx) {
+			void add_job(const Job<Time>* jx, std::size_t index) {
 				num_interfering_jobs_added++;
 				jobs.push_back(jx);
+
+				index_by_job.emplace(jx->get_id(), index);
+				job_by_index.emplace(std::make_pair(index, jobs.back()));
+                indices.push_back(index);
+
 				insert_sorted(jobs_by_latest_arrival, jx,
 							  [](const Job<Time>* i, const Job<Time>* j) -> bool { return i->latest_arrival() < j->latest_arrival(); });
 				insert_sorted(jobs_by_earliest_arrival, jx,
@@ -180,7 +187,7 @@ namespace NP {
 				return num_interfering_jobs_added;
 			}
 
-			private:
+		private:
 
 			bool job_satisfies_precedence_constraints(const Job_precedence_set &job_precedence_set, const Index_set &scheduled_jobs) {
 				if (job_precedence_set.empty()) {
@@ -198,8 +205,11 @@ namespace NP {
 				for (auto idx : job_precedence_set) {
 					predecessor_indices.add(idx);
 				}
-
-				return scheduled_union_reduction_set.includes(job_precedence_set) && !predecessor_indices.includes(indices);
+                // ?????
+                auto condition1 = scheduled_union_reduction_set.includes(job_precedence_set);
+                auto condition2 = !predecessor_indices.includes(indices);
+//				return scheduled_union_reduction_set.includes(job_precedence_set) && !predecessor_indices.includes(indices);
+                return condition1 && condition2;
 			}
 
 			bool can_interfere(const Job<Time> &job) const {
@@ -257,27 +267,35 @@ namespace NP {
 			// Preprocess priorities for s_i by setting priority of each job to the lowest priority of its predecessors
 			std::unordered_map<JobID, Priority> preprocess_priorities() {
 				std::unordered_map<JobID, Priority> job_prio_map{};
-				auto topo_sorted_jobs = topological_sort<Time>(job_precedence_sets, jobs);
+//				???
 
-				for (auto j: jobs) {
-					const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(j->get_id())->second];
-					Priority max_pred_prio = 0;
+                if (!job_precedence_sets.empty()) {
+                    auto topo_sorted_jobs = topological_sort<Time>(job_precedence_sets, jobs);
+                    for (auto j: topo_sorted_jobs) {
+                        const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(j.get_id())->second];
+                        Priority max_pred_prio = 0;
 
-					for (auto pred_idx: preds) {
-						auto iterator = job_by_index.find(pred_idx);
+                        for (auto pred_idx: preds) {
+                            auto iterator = job_by_index.find(pred_idx);
 
-						// We ignore all predecessors outside the reduction set
-						if (iterator == job_by_index.end()) {
-							continue;
-						}
+                            // We ignore all predecessors outside the reduction set
+                            if (iterator == job_by_index.end()) {
+                                continue;
+                            }
 
-						auto pred = iterator->second;
-						max_pred_prio = std::max(max_pred_prio, pred->get_priority());
-					}
+                            auto pred = iterator->second;
+                            max_pred_prio = std::max(max_pred_prio, pred->get_priority());
+                        }
 
-					Priority p = std::max(j->get_priority(), max_pred_prio);
-					job_prio_map.emplace(j->get_id(), p);
-				}
+                        Priority p = std::max(j.get_priority(), max_pred_prio);
+                        job_prio_map.emplace(j.get_id(), p);
+                    }
+                }else{
+                //in this case we don't have precedence constraints, so we just set the priority to the job's own priority
+                    for (auto j: jobs) {
+                        job_prio_map.emplace(j->get_id(), j->get_priority());
+                    }
+                }
 				return job_prio_map;
 			}
 
@@ -308,16 +326,20 @@ namespace NP {
 				while (not queue.empty()) {
 					Job<Time> &j = queue.front();
 					queue.pop_front();
-					size_t index_j = index_by_job.find(j.get_id())->second;
+                    if (!job_precedence_sets.empty()) {
+                        // if the job set has precedence constraints
+                        size_t index_j = index_by_job.find(j.get_id())->second;
 
-					for (auto k: remaining_jobs) {
-						const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(k->get_id())->second];
-						// k is a successor of j
-						if (std::find(preds.begin(), preds.end(), index_j) != preds.end()) {
-							descendants.push_back(k);
-							queue.push_back(*k);
-						}
-					}
+                        for (auto k: remaining_jobs) {
+                            const Job_precedence_set &preds = job_precedence_sets[index_by_job.find(
+                                    k->get_id())->second];
+                            // k is a successor of j
+                            if (std::find(preds.begin(), preds.end(), index_j) != preds.end()) {
+                                descendants.push_back(k);
+                                queue.push_back(*k);
+                            }
+                        }
+                    }
 
 					std::remove_if(remaining_jobs.begin(), remaining_jobs.end(), [descendants](auto &x) {
 						return std::find(descendants.begin(), descendants.end(), x) != descendants.end();
@@ -443,7 +465,7 @@ namespace NP {
 
 		template<class Time> class Reduction_set_statistics {
 
-			public:
+		public:
 
 			bool reduction_success;
 

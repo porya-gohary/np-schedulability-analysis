@@ -87,6 +87,11 @@ namespace NP {
 			return arrival.until();
 		}
 
+        void set_arrival(Interval<Time> arr)
+        {
+            arrival = arr;
+        }
+
 		const Interval<Time>& arrival_window() const
 		{
 			return arrival;

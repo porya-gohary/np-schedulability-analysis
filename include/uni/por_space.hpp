@@ -31,7 +31,7 @@ namespace NP {
 		template<class Time, class IIP = Null_IIP<Time>, class POR_criterion = POR_criterion<Time>> class Por_state_space : public State_space<Time, IIP>
 		{
 
-			public:
+		public:
 
 			typedef typename State_space<Time, IIP>::Problem Problem;
 			typedef typename State_space<Time, IIP>::Workload Workload;
@@ -47,7 +47,7 @@ namespace NP {
 				assert(prob.num_processors == 1);
 
 				// Preprocess the job such that they release at or after their predecessors release
-				auto jobs = topological_sort<Time>(prob.dag, prob.jobs);
+				auto jobs = preprocess_jobs<Time>(prob.dag, prob.jobs);
 
 				Por_state_space s = Por_state_space(jobs, prob.dag, prob.aborts,
 									 opts.timeout, opts.max_depth,
@@ -91,7 +91,7 @@ namespace NP {
 				return reduction_set_statistics;
 			}
 
-			protected:
+		protected:
 
 			using State_space<Time, IIP>::explore;
 			using State_space<Time, IIP>::explore_naively;
@@ -100,6 +100,7 @@ namespace NP {
 			POR_criterion por_criterion;
 			unsigned long reduction_successes, reduction_failures;
 			std::vector<Reduction_set_statistics<Time>> reduction_set_statistics;
+			std::vector<Job_precedence_set> job_precedence_sets;
 
 			Por_state_space(const Workload& jobs,
 							const Precedence_constraints &dag_edges,
@@ -113,7 +114,14 @@ namespace NP {
 			, reduction_successes(0)
 			, reduction_failures(0)
 			, reduction_set_statistics()
-			{}
+			, job_precedence_sets(jobs.size())
+			{
+				for (auto e : dag_edges) {
+					const Job<Time>& from = lookup<Time>(jobs, e.first);
+					const Job<Time>& to   = lookup<Time>(jobs, e.second);
+					job_precedence_sets[index_of(to,jobs)].push_back(index_of(from,jobs));
+				}
+			}
 
 			void schedule_eligible_successors_naively(const State &s, const Interval<Time> &next_range, bool &found_at_least_one) override
 			{
@@ -160,6 +168,10 @@ namespace NP {
 							eligible_successors.push_back(jp);
 						}
 					}
+
+                for (int i = 0; i < eligible_successors.size(); ++i) {
+                    DM("eligible_successors[" << i << "] = " << *eligible_successors[i] << std::endl);
+                }
 
 				if (eligible_successors.size() > 1) {
 					Reduction_set<Time> reduction_set = create_reduction_set(s, eligible_successors);
@@ -225,7 +237,7 @@ namespace NP {
 						this->new_state(s, reduction_set, indices,
 								  finish_range,
 								  earliest_possible_job_release(s, reduction_set));
-				DM("      -----> S" << (states.end() - states.begin()) << std::endl);
+			//	DM("      -----> S" << (states.end() - states.begin()) << std::endl);
 				process_new_edge(s, next, reduction_set, finish_range);
 			}
 
@@ -242,7 +254,7 @@ namespace NP {
 						this->new_state(s, reduction_set, indices,
 								  finish_range,
 								  earliest_possible_job_release(s, reduction_set));
-				DM("      -----> S" << (states.end() - states.begin()) << std::endl);
+			//	DM("      -----> S" << (states.end() - states.begin()) << std::endl);
 				process_new_edge(s, next, reduction_set, finish_range);
 			}
 
@@ -254,7 +266,7 @@ namespace NP {
 					indices.push_back(this->index_of(*j));
 				}
 
-				Reduction_set<Time> reduction_set{Interval<Time>{s.earliest_finish_time(), s.latest_finish_time()}, eligible_successors, indices};
+				Reduction_set<Time> reduction_set{Interval<Time>{s.earliest_finish_time(), s.latest_finish_time()}, eligible_successors, indices,job_precedence_sets};
 
 				while (true) {
 					if (reduction_set.has_potential_deadline_misses()) {
@@ -279,10 +291,10 @@ namespace NP {
 						reduction_successes++;
 						reduction_set_statistics.push_back(Reduction_set_statistics<Time>{true, reduction_set});
 
-						return reduction_set;;
+						return reduction_set;
 					} else {
 						const Job<Time>* jx = por_criterion.select_job(interfering_jobs);
-						reduction_set.add_job(jx);
+						reduction_set.add_job(jx,this->index_of(*jx));
 					}
 				}
 
