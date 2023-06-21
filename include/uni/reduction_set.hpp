@@ -103,10 +103,6 @@ namespace NP {
 				return latest_idle_time;
 			}
 
-			Job_map get_latest_start_times() const {
-				return latest_start_times;
-			}
-
 			Time get_latest_start_time(const Job<Time> &job) const {
 				auto iterator = latest_start_times.find(job.get_id());
 				return iterator == latest_start_times.end() ? -1 : iterator->second;
@@ -515,17 +511,6 @@ namespace NP {
 				return max_prio;
 			}
 
-			// Returns the smallest wcet among the jobs with a lower priority than job
-			Time min_lower_priority_wcet(const Job<Time> &job) const {
-				auto pos = std::find_if(jobs_by_wcet.begin(), jobs_by_wcet.end(),
-										[&job](const Job<Time> *j) { return job.higher_priority_than(*j); });
-
-				if (pos == jobs_by_wcet.end()) {
-					return 0;
-				} else {
-					return (*pos)->maximal_cost();
-				}
-			}
 
 			void initialize_key() {
 				for (const Job<Time> *j: jobs) {
