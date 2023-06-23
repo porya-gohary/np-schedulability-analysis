@@ -10,6 +10,13 @@
 
 #include "jobs.hpp"
 
+/*
+ * All the references to the paper are to:
+ * [1] S. Ranjha, P. Gohari, G. Nelissen, and M. Nasri,
+ *     “Partial-order reduction in reachability-based response-time analyses of limited-preemptive Dag Tasks,”
+ *      Real-Time Systems, vol. 59, no. 2, pp. 201–255, 2023. doi:10.1007/s11241-023-09398-x
+ */
+
 namespace NP {
 
 	namespace Uniproc {
@@ -216,7 +223,7 @@ namespace NP {
 					predecessor_indices.add(idx);
 				}
 
-				// --> Eq. 17 in the paper
+				// --> Eq. 17 in the paper (see [1] at the top of this file)
 				// ances(j_x) subseteq J^S union J^P
 				auto condition1 = scheduled_union_reduction_set.includes(job_precedence_set);
 				// J^S is not a subset of ances(j_x)
@@ -225,7 +232,7 @@ namespace NP {
 				return condition1 && condition2;
 			}
 
-			// Corollary 1 in the paper
+			// Corollary 1 in the paper (see [1] at the top of this file)
 			bool can_interfere(const Job<Time> &job) const {
 				// A job can't interfere with itself
 				auto pos = std::find_if(jobs.begin(), jobs.end(),
@@ -236,12 +243,12 @@ namespace NP {
 				}
 
 				// rx_min < delta_M
-				// Lemma 4 in the paper
+				// Lemma 4 in the paper (see [1] at the top of this file)
 				if (job.earliest_arrival() <= latest_idle_time) {
 					return true;
 				}
 
-				// Check second condition of Lemma 5 in the paper
+				// Check second condition of Lemma 5 in the paper (see [1] at the top of this file)
 				Time max_arrival = jobs_by_latest_arrival.back()->latest_arrival();
 
 				// a quick check to see if the job can interfere
@@ -260,7 +267,7 @@ namespace NP {
 			}
 
 			// Calculate the EFT^bar
-			// --> Algorithm 2 in the paper
+			// --> Algorithm 2 in the paper (see [1] at the top of this file)
 			Time compute_latest_busy_time() {
 				Time t = cpu_availability.max();
 
@@ -273,7 +280,7 @@ namespace NP {
 
 
 			Job_map compute_latest_start_times() {
-				// Preprocess priorities p*_i using Eq. 11 in the paper
+				// Preprocess priorities p*_i using Eq. 11 in the paper (see [1] at the top of this file)
 				std::unordered_map<JobID, Priority> job_prio_map = preprocess_priorities();
 
 				Job_map start_times{};
@@ -285,7 +292,7 @@ namespace NP {
 			}
 
 			// Preprocess priorities for s_i by setting priority of each job to the lowest priority of its predecessors
-			// ---> Eq. 11 in the paper (p*_i)
+			// ---> Eq. 11 in the paper (see [1] at the top of this file) (p*_i)
 			std::unordered_map<JobID, Priority> preprocess_priorities() {
 				std::unordered_map<JobID, Priority> job_prio_map{};
 
@@ -315,7 +322,8 @@ namespace NP {
 						job_prio_map.emplace(j.get_id(), p);
 					}
 				} else {
-					//in this case we don't have precedence constraints, so we just set the priority to the job's own priority
+					// in this case we don't have precedence constraints,
+                    // so we just set the priority to the job's own priority
 					for (auto j: jobs) {
 						job_prio_map.emplace(j->get_id(), j->get_priority());
 					}
@@ -323,7 +331,7 @@ namespace NP {
 				return job_prio_map;
 			}
 
-			// ---> Eq. 16 in the paper min{s_i, (LFT^bar - sum(C_j^max) - C_i^max)}
+			// ---> Eq. 16 in the paper (see [1] at the top of this file) min{s_i, (LFT^bar - sum(C_j^max) - C_i^max)}
 			Time
 			compute_latest_start_time(const Job<Time> &i, const std::unordered_map<JobID, Priority> &job_prio_map) {
 				Time s_i = compute_si(i, job_prio_map);
@@ -332,7 +340,7 @@ namespace NP {
 			}
 
 			// Upper bound on latest start time (LFT^bar - sum(C_j^max) - C_i^max)
-			// ---> second part of Eq. 16 in the paper
+			// ---> second part of Eq. 16 in the paper (see [1] at the top of this file)
 			Time compute_second_lst_bound(const Job<Time> &i) {
 				Job_set descendants = get_descendants(i);
 
@@ -376,7 +384,7 @@ namespace NP {
 			}
 
 			// Upper bound on latest start time (s_i)
-			// ---> Eqs. 12 and 13 in the paper
+			// ---> Eqs. 12 and 13 in the paper (see [1] at the top of this file)
 			Time compute_si(const Job<Time> &i, const std::unordered_map<JobID, Priority> &job_prio_map) {
 				const Job<Time> *blocking_job = nullptr;
 
@@ -393,7 +401,7 @@ namespace NP {
 				}
 
 				Time blocking_time = blocking_job == nullptr ? 0 : std::max<Time>(0, blocking_job->maximal_cost());
-				// ---> calculate s_i^0 (Eq. 12 in the paper)
+				// ---> calculate s_i^0 (Eq. 12 in the paper (see [1] at the top of this file))
 				Time latest_start_time = std::max(cpu_availability.max(), i.latest_arrival() -
 																		  Time_model::constants<Time>::epsilon() +
 																		  blocking_time);
@@ -404,8 +412,9 @@ namespace NP {
 					size_t index_i = index_by_job.find(i.get_id())->second;
 
 					const Job_precedence_set &preds = job_precedence_sets[index_i];
-					// get all ancestors of j and add them to a vector
-					Job_precedence_set ancestors = preds;
+					// get all ancestors of j and add them to a set (to avoid duplicates)
+                    std::set<std::size_t> ancestors (preds.begin(), preds.end());
+
 					std::queue<size_t> q;
 					for (auto pred_idx: preds) {
 						q.push(pred_idx);
@@ -416,7 +425,7 @@ namespace NP {
 						const Job_precedence_set &pred_preds = job_precedence_sets[pred_idx];
 						for (auto pred_pred_idx: pred_preds) {
 							q.push(pred_pred_idx);
-							ancestors.push_back(pred_pred_idx);
+							ancestors.insert(pred_pred_idx);
 						}
 					}
 
@@ -434,7 +443,7 @@ namespace NP {
 				}
 
 
-				// ---> calculate s_i^k (Eq. 13 in the paper)
+				// ---> calculate s_i^k (Eq. 13 in the paper (see [1] at the top of this file))
 				for (const Job<Time> *j: jobs_by_earliest_arrival) {
 					if (j->get_id() == i.get_id()) {
 						continue;
@@ -451,7 +460,7 @@ namespace NP {
 				return latest_start_time;
 			}
 
-			// Algorithm 3 in the paper (LFT^bar)
+			// Algorithm 3 in the paper (see [1] at the top of this file) (LFT^bar)
 			Time compute_latest_idle_time() {
 				Time idle_time{-1};
 				const Job<Time> *idle_job = nullptr;
