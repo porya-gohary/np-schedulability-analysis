@@ -98,6 +98,7 @@ namespace NP {
 			unsigned long reduction_successes, reduction_failures;
 			std::vector<Reduction_set_statistics<Time>> reduction_set_statistics;
 			std::vector<Job_precedence_set> job_precedence_sets;
+            std::vector<Job_precedence_set> job_ancestor_sets;
 
 			Por_state_space(const Workload &jobs,
 							const Precedence_constraints &dag_edges,
@@ -108,12 +109,40 @@ namespace NP {
 							bool early_exit = true)
 					: State_space<Time, IIP>(jobs, dag_edges, aborts, max_cpu_time, max_depth, num_buckets, early_exit),
 					  por_criterion(), reduction_successes(0), reduction_failures(0), reduction_set_statistics(),
-					  job_precedence_sets(jobs.size()) {
+					  job_precedence_sets(jobs.size()), job_ancestor_sets(jobs.size()) {
 				for (auto e: dag_edges) {
 					const Job<Time> &from = lookup<Time>(jobs, e.first);
 					const Job<Time> &to = lookup<Time>(jobs, e.second);
 					job_precedence_sets[index_of(to, jobs)].push_back(index_of(from, jobs));
 				}
+
+                // compute the ancestor sets
+                for (auto &j: jobs) {
+                    std::set<std::size_t> ancestors;
+                    size_t index_i = index_of(j, jobs);
+
+                    const Job_precedence_set preds = job_precedence_sets[index_i];
+                    // get all ancestors of j and add them to a set (to avoid duplicates)
+                    ancestors.insert(preds.begin(), preds.end());
+
+                    std::queue<size_t> q;
+                    for (auto pred_idx: preds) {
+                        q.push(pred_idx);
+                    }
+                    while (!q.empty()) {
+                        size_t pred_idx = q.front();
+                        q.pop();
+                        const Job_precedence_set &pred_preds = job_precedence_sets[pred_idx];
+                        for (auto pred_pred_idx: pred_preds) {
+                            q.push(pred_pred_idx);
+                            ancestors.insert(pred_pred_idx);
+                        }
+                    }
+
+                    // add the ancestors to the job_ancestor_sets
+                    job_ancestor_sets[index_i] = Job_precedence_set(ancestors.begin(), ancestors.end());
+
+                }
 			}
 
 			void schedule_eligible_successors_naively(const State &s, const Interval<Time> &next_range,
@@ -259,7 +288,7 @@ namespace NP {
 				}
 
 				Reduction_set<Time> reduction_set{Interval<Time>{s.earliest_finish_time(), s.latest_finish_time()},
-												  eligible_successors, indices, job_precedence_sets};
+												  eligible_successors, indices, job_precedence_sets,job_ancestor_sets};
 
 				while (true) {
 					if (reduction_set.has_potential_deadline_misses()) {

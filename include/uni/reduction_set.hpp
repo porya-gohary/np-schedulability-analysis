@@ -36,6 +36,7 @@ namespace NP {
 			Job_set jobs;
 			std::vector<std::size_t> indices;
 			std::vector<Job_precedence_set> job_precedence_sets;
+			std::vector<Job_precedence_set> job_ancestor_sets;
 			Job_set jobs_by_latest_arrival;
 			Job_set jobs_by_earliest_arrival;
 			Job_set jobs_by_wcet;
@@ -51,11 +52,13 @@ namespace NP {
 		public:
 
 			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> &indices,
-						  const std::vector<Job_precedence_set> &job_precedence_sets)
+						  const std::vector<Job_precedence_set> &job_precedence_sets,
+                          const std::vector<Job_precedence_set> &job_ancestor_sets)
 					: cpu_availability{cpu_availability},
 					  jobs{jobs},
 					  indices{indices},
 					  job_precedence_sets{job_precedence_sets},
+                      job_ancestor_sets{job_ancestor_sets},
 					  jobs_by_latest_arrival{jobs},
 					  jobs_by_earliest_arrival{jobs},
 					  jobs_by_wcet{jobs},
@@ -408,39 +411,17 @@ namespace NP {
 
 				// if we have precedence constraints
 				// we need to add the maximal cost of all ancestors in the reduction set
-                std::set<std::size_t> ancestors;
+
 				if (!job_precedence_sets.empty()) {
-					size_t index_i = index_by_job.find(i.get_id())->second;
-
-					const Job_precedence_set &preds = job_precedence_sets[index_i];
-					// get all ancestors of j and add them to a set (to avoid duplicates)
-                    ancestors.insert(preds.begin(), preds.end());
-
-					std::queue<size_t> q;
-					for (auto pred_idx: preds) {
-						q.push(pred_idx);
-					}
-					while (!q.empty()) {
-						size_t pred_idx = q.front();
-						q.pop();
-						const Job_precedence_set &pred_preds = job_precedence_sets[pred_idx];
-						for (auto pred_pred_idx: pred_preds) {
-							q.push(pred_pred_idx);
-							ancestors.insert(pred_pred_idx);
-						}
-					}
-
-					for (auto pred_idx: ancestors) {
-						auto iterator = job_by_index.find(pred_idx);
-
-						// We ignore all ancestors outside the reduction set
-						if (iterator == job_by_index.end()) {
-							continue;
-						}
-
-						auto anc = iterator->second;
-						latest_start_time += anc->maximal_cost();
-					}
+					// calculate the summation of all ancestors in the reduction set
+                    Job_precedence_set ancestors = job_ancestor_sets[index_by_job.find(i.get_id())->second];
+                    latest_start_time += std::accumulate(ancestors.begin(), ancestors.end(), 0, [this](Time x, auto &y) {
+                        // We ignore all ancestors outside the reduction set
+                        if (job_by_index.find(y) == job_by_index.end()) {
+                            return x;
+                        }
+                        return x + job_by_index.find(y)->second->maximal_cost();
+                    });
 				}
 
 
@@ -453,7 +434,8 @@ namespace NP {
                     // ignore if we already considered this job as an ancestor in Eq. 12
                     if (!job_precedence_sets.empty()) {
                         size_t index_j = index_by_job.find(j->get_id())->second;
-                        if (ancestors.find(index_j) != ancestors.end()) {
+                        Job_precedence_set ancestors = job_ancestor_sets[index_by_job.find(i.get_id())->second];
+                        if (std::find(ancestors.begin(), ancestors.end(), index_j) != ancestors.end()) {
                             continue;
                         }
                     }
