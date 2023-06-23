@@ -408,12 +408,13 @@ namespace NP {
 
 				// if we have precedence constraints
 				// we need to add the maximal cost of all ancestors in the reduction set
+                std::set<std::size_t> ancestors;
 				if (!job_precedence_sets.empty()) {
 					size_t index_i = index_by_job.find(i.get_id())->second;
 
 					const Job_precedence_set &preds = job_precedence_sets[index_i];
 					// get all ancestors of j and add them to a set (to avoid duplicates)
-                    std::set<std::size_t> ancestors (preds.begin(), preds.end());
+                    ancestors.insert(preds.begin(), preds.end());
 
 					std::queue<size_t> q;
 					for (auto pred_idx: preds) {
@@ -448,6 +449,14 @@ namespace NP {
 					if (j->get_id() == i.get_id()) {
 						continue;
 					}
+
+                    // ignore if we already considered this job as an ancestor in Eq. 12
+                    if (!job_precedence_sets.empty()) {
+                        size_t index_j = index_by_job.find(j->get_id())->second;
+                        if (ancestors.find(index_j) != ancestors.end()) {
+                            continue;
+                        }
+                    }
 
 					if (j->earliest_arrival() <= latest_start_time &&
 						!i.priority_exceeds(job_prio_map.find(j->get_id())->second)) {
