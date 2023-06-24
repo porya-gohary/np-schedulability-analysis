@@ -405,9 +405,11 @@ namespace NP {
 
 				Time blocking_time = blocking_job == nullptr ? 0 : std::max<Time>(0, blocking_job->maximal_cost());
 				// ---> calculate s_i^0 (Eq. 12 in the paper (see [1] at the top of this file))
-				Time latest_start_time = std::max(cpu_availability.max(), i.latest_arrival() -
-																		  Time_model::constants<Time>::epsilon() +
-																		  blocking_time);
+				Time latest_start_time = std::max(cpu_availability.max(), std::max(i.latest_arrival(),
+																				   i.latest_arrival() -
+																				   Time_model::constants<Time>::epsilon() +
+																				   blocking_time));
+
 
 				// if we have precedence constraints
 				// we need to add the maximal cost of all ancestors in the reduction set
