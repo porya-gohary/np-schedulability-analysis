@@ -52,13 +52,11 @@ namespace NP {
 		public:
 
 			Reduction_set(Interval<Time> cpu_availability, const Job_set &jobs, std::vector<std::size_t> &indices,
-						  const std::vector<Job_precedence_set> &job_precedence_sets,
-                          const std::vector<Job_precedence_set> &job_ancestor_sets)
+						  const std::vector<Job_precedence_set> &job_precedence_sets)
 					: cpu_availability{cpu_availability},
 					  jobs{jobs},
 					  indices{indices},
 					  job_precedence_sets{job_precedence_sets},
-                      job_ancestor_sets{job_ancestor_sets},
 					  jobs_by_latest_arrival{jobs},
 					  jobs_by_earliest_arrival{jobs},
 					  jobs_by_wcet{jobs},
@@ -410,37 +408,13 @@ namespace NP {
 																				   Time_model::constants<Time>::epsilon() +
 																				   blocking_time));
 
-
-				// if we have precedence constraints
-				// we need to add the maximal cost of all ancestors in the reduction set
-
-				if (!job_precedence_sets.empty()) {
-					// calculate the summation of all ancestors in the reduction set
-                    Job_precedence_set ancestors = job_ancestor_sets[index_by_job.find(i.get_id())->second];
-                    latest_start_time += std::accumulate(ancestors.begin(), ancestors.end(), 0, [this](Time x, auto &y) {
-                        // We ignore all ancestors outside the reduction set
-                        if (job_by_index.find(y) == job_by_index.end()) {
-                            return x;
-                        }
-                        return x + job_by_index.find(y)->second->maximal_cost();
-                    });
-				}
-
+				// the summation of WCETs of ancestors of i is covered by the next loop
 
 				// ---> calculate s_i^k (Eq. 13 in the paper (see [1] at the top of this file))
 				for (const Job<Time> *j: jobs_by_earliest_arrival) {
 					if (j->get_id() == i.get_id()) {
 						continue;
 					}
-
-                    // ignore if we already considered this job as an ancestor in Eq. 12
-                    if (!job_precedence_sets.empty()) {
-                        size_t index_j = index_by_job.find(j->get_id())->second;
-                        Job_precedence_set ancestors = job_ancestor_sets[index_by_job.find(i.get_id())->second];
-                        if (std::find(ancestors.begin(), ancestors.end(), index_j) != ancestors.end()) {
-                            continue;
-                        }
-                    }
 
 					if (j->earliest_arrival() <= latest_start_time &&
 						!i.priority_exceeds(job_prio_map.find(j->get_id())->second)) {

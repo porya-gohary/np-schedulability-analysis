@@ -159,34 +159,6 @@ namespace NP {
 		return topological_sort<Time>(job_precedence_sets, set_arrival_times<Time>(job_precedence_sets, jobs));
 	}
 
-    template<class Time>
-    std::vector<Job_precedence_set> calculate_ancestor_sets(const typename Job<Time>::Job_set &jobs,
-                                                            const std::vector<Job_precedence_set> &job_precedence_sets) {
-        // in this function we assume that jobs are sorted in topological order
-        std::vector<Job_precedence_set> job_ancestor_sets(jobs.size());
-        // compute the ancestor sets
-        for (auto &j: jobs) {
-            // based on the topological order, all predecessors of j have been processed already,
-            // so we can just add them to the ancestor set
-            std::set<std::size_t> ancestors;
-            size_t index_i = index_of(j, jobs);
-
-            const Job_precedence_set preds = job_precedence_sets[index_i];
-            // get all ancestors of j and add them to a set (to avoid duplicates)
-            ancestors.insert(preds.begin(), preds.end());
-
-            for (auto pred_idx: preds) {
-                ancestors.insert(job_ancestor_sets[pred_idx].begin(), job_ancestor_sets[pred_idx].end());
-            }
-
-            // add the ancestors to the job_ancestor_sets
-            job_ancestor_sets[index_i] = Job_precedence_set(ancestors.begin(), ancestors.end());
-
-        }
-
-        return job_ancestor_sets;
-    }
-
 }
 
 #endif
